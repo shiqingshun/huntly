@@ -32,4 +32,6 @@ public class Source implements Serializable {
     @Column(name = "favicon_url")
     private String faviconUrl;
 
+    @Transient
+    private int total;
 }

@@ -25,6 +25,7 @@ export type PageFilterOptions = {
   sortFields: SortField[]
   defaultSortValue: SORT_VALUE,
   asc: boolean,
+  sourceId?: number,
   hideContentTypeFilter?: boolean,
   contentFilterType?: number,
   startDate?: string
@@ -38,7 +39,7 @@ export type PageFilterProps = {
 
 export default function PageFilters(props: PageFilterProps) {
   const {options, onChange} = props;
-  const {sortFields, defaultSortValue, asc, hideContentTypeFilter, contentFilterType, startDate, endDate} = options;
+  const {sortFields, defaultSortValue, asc, hideContentTypeFilter, contentFilterType, startDate, endDate, sourceId} = options;
   const [pickerAnchorEl, setPickerAnchorEl] = React.useState(null);
   const [tempStartDate, setTempStartDate] = React.useState(startDate);
   const [tempEndDate, setTempEndDate] = React.useState(endDate);

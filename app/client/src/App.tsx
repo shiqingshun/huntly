@@ -12,6 +12,7 @@ import MyList from "./pages/MyList";
 import Starred from "./pages/Starred";
 import ReadLater from "./pages/ReadLater";
 import Archive from "./pages/Archive";
+import Source from "./pages/Source";
 import ConnectorList from "./pages/ConnectorList";
 import FolderList from "./pages/FolderList";
 import AllFeeds from "./pages/AllFeeds";
@@ -33,6 +34,7 @@ function App() {
           <Route path={"/archive"} element={<Archive/>}/>
           <Route path="/page/:id" element={<Page/>}/>
           <Route path="/connector/:id" element={<ConnectorList/>}/>
+          <Route path="/source/:id" element={<Source/>}/>
           <Route path="/folder/:id" element={<FolderList/>}/>
           <Route path="/feeds" element={<AllFeeds/>}/>
           <Route path="/search" element={<Search/>}/>

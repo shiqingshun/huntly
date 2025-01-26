@@ -18,6 +18,8 @@ import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import AccountSetting from "./AccountSetting";
 import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import GeneralSetting from "./GeneralSetting";
+import LanguageIcon from '@mui/icons-material/Language';
+import {SourceManage} from "./SourceManage";
 
 type SettingModalProps = {
   open: boolean,
@@ -93,6 +95,15 @@ export default function SettingModal(props: SettingModalProps) {
               </ListItemIcon>
               <ListItemText primary="Account"/>
             </ListItemButton>
+            <ListItemButton
+              selected={selectedIndex === 5}
+              onClick={(event) => handleListItemClick(event, 5)}
+            >
+              <ListItemIcon>
+                <LanguageIcon/>
+              </ListItemIcon>
+              <ListItemText primary="Sources"/>
+            </ListItemButton>
           </List>
         </div>
 
@@ -112,6 +123,9 @@ export default function SettingModal(props: SettingModalProps) {
             }
             {
               selectedIndex === 4 && <AccountSetting/>
+            }
+            {
+              selectedIndex === 5 && <SourceManage/>
             }
           </div>
         </div>

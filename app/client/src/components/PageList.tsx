@@ -70,7 +70,7 @@ const PageList = (props: PageListProps) => {
   const [showDoneTip, setShowDoneTip] = useState(false);
   const [lastVisitPageId, setLastVisitPageId] = useState(0);
   const pageSize = filters.count || 20;
-  const queryKey = [PageQueryKey.PageList, filters];
+  const queryKey = [PageQueryKey.PageList, filters, filters.sourceId];
 
   const {
     isLoading,
@@ -128,6 +128,7 @@ const PageList = (props: PageListProps) => {
         lastPage && lastPage.length > 0 && lastPage.length >= pageSize
           ? (filters.sort === 'VOTE_SCORE' ? {lastVoteScore: lastPage[lastPage.length - 1].voteScore} : {lastRecordAt: lastPage[lastPage.length - 1].recordAt})
           : undefined,
+      enabled: filters.sourceId !== undefined,
     },
   );
 

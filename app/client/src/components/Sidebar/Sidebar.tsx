@@ -4,7 +4,7 @@ import LibraryNavTree from "./LibraryNavTree";
 import {IconButton} from "@mui/material";
 import AddIcon from "@mui/icons-material/Add";
 import {useQuery} from "@tanstack/react-query";
-import {ConnectorControllerApiFactory, ConnectorItem, FolderConnectors} from "../../api";
+import {ConnectorControllerApiFactory, ConnectorItem, FolderConnectors, SourceItem} from "../../api";
 import NavTreeView, {NavTreeViewItem} from "./NavTreeView";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import RssFeedIcon from "@mui/icons-material/RssFeed";
@@ -22,17 +22,19 @@ const Sidebar = () => {
       <div className={'grow text-base leading-4 font-medium text-gray-400'}>
         {leadingText}
       </div>
-      <div>
-        <IconButton onClick={() => {
-          if (leadingText === 'CONNECT') {
-            openConnectSettingModal();
-          } else {
-            openFeedsSettingModal();
-          }
-        }}>
-          <AddIcon fontSize={"small"} className={"text-gray-400"}/>
-        </IconButton>
-      </div>
+      {leadingText !== 'SOURCES' && (
+        <div>
+          <IconButton onClick={() => {
+            if (leadingText === 'CONNECT') {
+              openConnectSettingModal();
+            } else {
+              openFeedsSettingModal();
+            }
+          }}>
+            <AddIcon fontSize={"small"} className={"text-gray-400"}/>
+          </IconButton>
+        </div>
+      )}
     </div>;
   }
 
@@ -42,6 +44,17 @@ const Sidebar = () => {
                         selectedNodeId={location.pathname}/>
   }
 
+  function folderSourcesView(sourceItemArray: SourceItem[]) {
+    const treeItems = sourceItemArray.map(sourceItem => ({
+      labelText: sourceItem.siteName,
+      labelIcon: FolderOpenIcon,
+      linkTo: "/source/" + sourceItem.id,
+      inboxCount: sourceItem.total,
+      iconUrl: sourceItem.faviconUrl
+    }));
+    return <NavTreeView treeItems={treeItems} ariaLabel={'connectors'} defaultExpanded={[]}
+                        selectedNodeId={location.pathname}/>
+  }
 
   function folderConnectorsToTreeItems(folderConnectorsArray: FolderConnectors[], isRss: boolean) {
     let treeItems: NavTreeViewItem[] = [];
@@ -136,6 +149,9 @@ const Sidebar = () => {
 
       {leadingHeader('FEEDS')}
       {view && view.folderConnectors && folderConnectorsView(view.folderFeedConnectors, true)}
+      
+      {leadingHeader('SOURCES')}
+      {view && view.folderSources && folderSourcesView(view.folderSources)}
 
       {
         settingModalOpen &&

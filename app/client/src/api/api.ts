@@ -523,6 +523,12 @@ export interface FolderConnectorView {
      * @memberof FolderConnectorView
      */
     'folderFeedConnectors'?: Array<FolderConnectors>;
+    /**
+     * 
+     * @type {Array<SourceItem>}
+     * @memberof FolderConnectorView
+     */
+    'folderSources'?: Array<SourceItem>;
 }
 /**
  * 
@@ -1575,6 +1581,43 @@ export interface Source {
      * @memberof Source
      */
     'subscribeUrl'?: string;
+    /**
+     * 
+     * @type {number}
+     * @memberof Source
+     */
+    'total'?: number;
+}
+/**
+ * 
+ * @export
+ * @interface SourceItem
+ */
+export interface SourceItem {
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceItem
+     */
+    'faviconUrl'?: string;
+    /**
+     * 
+     * @type {number}
+     * @memberof SourceItem
+     */
+    'id'?: number;
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceItem
+     */
+    'siteName'?: string;
+    /**
+     * 
+     * @type {number}
+     * @memberof SourceItem
+     */
+    'total'?: number;
 }
 /**
  * 
@@ -6271,6 +6314,238 @@ export class SettingControllerApi extends BaseAPI {
      */
     public updateLoginUserUsingPOST(name?: string, loginRequest?: LoginRequest, options?: AxiosRequestConfig) {
         return SettingControllerApiFp(this.configuration).updateLoginUserUsingPOST(name, loginRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+}
+
+
+/**
+ * SourceControllerApi - axios parameter creator
+ * @export
+ */
+export const SourceControllerApiAxiosParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * 
+         * @summary deleteSource
+         * @param {number} id id
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        deleteSourceUsingDELETE: async (id: number, options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'id' is not null or undefined
+            assertParamExists('deleteSourceUsingDELETE', 'id', id)
+            const localVarPath = `/api/source/{id}`
+                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary getSources
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getSourcesUsingGET: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/source/all`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary saveSource
+         * @param {Source} [source] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveSourceUsingPOST: async (source?: Source, options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/source/save`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(source, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * SourceControllerApi - functional programming interface
+ * @export
+ */
+export const SourceControllerApiFp = function(configuration?: Configuration) {
+    const localVarAxiosParamCreator = SourceControllerApiAxiosParamCreator(configuration)
+    return {
+        /**
+         * 
+         * @summary deleteSource
+         * @param {number} id id
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async deleteSourceUsingDELETE(id: number, options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<boolean>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.deleteSourceUsingDELETE(id, options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+        /**
+         * 
+         * @summary getSources
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getSourcesUsingGET(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Array<Source>>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getSourcesUsingGET(options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+        /**
+         * 
+         * @summary saveSource
+         * @param {Source} [source] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async saveSourceUsingPOST(source?: Source, options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Source>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.saveSourceUsingPOST(source, options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+    }
+};
+
+/**
+ * SourceControllerApi - factory interface
+ * @export
+ */
+export const SourceControllerApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
+    const localVarFp = SourceControllerApiFp(configuration)
+    return {
+        /**
+         * 
+         * @summary deleteSource
+         * @param {number} id id
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        deleteSourceUsingDELETE(id: number, options?: any): AxiosPromise<boolean> {
+            return localVarFp.deleteSourceUsingDELETE(id, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
+         * @summary getSources
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getSourcesUsingGET(options?: any): AxiosPromise<Array<Source>> {
+            return localVarFp.getSourcesUsingGET(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
+         * @summary saveSource
+         * @param {Source} [source] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveSourceUsingPOST(source?: Source, options?: any): AxiosPromise<Source> {
+            return localVarFp.saveSourceUsingPOST(source, options).then((request) => request(axios, basePath));
+        },
+    };
+};
+
+/**
+ * SourceControllerApi - object-oriented interface
+ * @export
+ * @class SourceControllerApi
+ * @extends {BaseAPI}
+ */
+export class SourceControllerApi extends BaseAPI {
+    /**
+     * 
+     * @summary deleteSource
+     * @param {number} id id
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourceControllerApi
+     */
+    public deleteSourceUsingDELETE(id: number, options?: AxiosRequestConfig) {
+        return SourceControllerApiFp(this.configuration).deleteSourceUsingDELETE(id, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary getSources
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourceControllerApi
+     */
+    public getSourcesUsingGET(options?: AxiosRequestConfig) {
+        return SourceControllerApiFp(this.configuration).getSourcesUsingGET(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary saveSource
+     * @param {Source} [source] 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourceControllerApi
+     */
+    public saveSourceUsingPOST(source?: Source, options?: AxiosRequestConfig) {
+        return SourceControllerApiFp(this.configuration).saveSourceUsingPOST(source, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

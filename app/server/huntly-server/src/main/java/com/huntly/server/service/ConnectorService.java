@@ -3,6 +3,7 @@ package com.huntly.server.service;
 import com.huntly.interfaces.external.dto.ConnectorItem;
 import com.huntly.interfaces.external.dto.FolderConnectorView;
 import com.huntly.interfaces.external.dto.FolderConnectors;
+import com.huntly.interfaces.external.dto.SourceItem;
 import com.huntly.interfaces.external.model.GitHubSetting;
 import com.huntly.server.config.HuntlyProperties;
 import com.huntly.server.connector.ConnectorProperties;
@@ -11,11 +12,9 @@ import com.huntly.server.domain.constant.AppConstants;
 import com.huntly.server.domain.entity.Connector;
 import com.huntly.server.domain.entity.ConnectorSetting;
 import com.huntly.server.domain.entity.Folder;
+import com.huntly.server.domain.entity.Source;
 import com.huntly.server.domain.mapper.ConnectorItemMapper;
-import com.huntly.server.repository.ConnectorRepository;
-import com.huntly.server.repository.ConnectorSettingRepository;
-import com.huntly.server.repository.FolderRepository;
-import com.huntly.server.repository.PageRepository;
+import com.huntly.server.repository.*;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.Sort;
 import org.springframework.stereotype.Service;
@@ -36,6 +35,8 @@ public class ConnectorService {
 
     private final ConnectorRepository connectorRepository;
 
+    private final SourceRepository sourceRepository;
+
     private final ConnectorSettingRepository connectorSettingRepository;
 
     private final PageRepository pageRepository;
@@ -43,11 +44,12 @@ public class ConnectorService {
     private GlobalSettingService globalSettingService;
 
     public ConnectorService(HuntlyProperties huntlyProperties, FolderRepository folderRepository, ConnectorSettingRepository connectorSettingRepository,
-                            ConnectorRepository connectorRepository, PageRepository pageRepository, GlobalSettingService globalSettingService) {
+                            ConnectorRepository connectorRepository, SourceRepository sourceRepository, PageRepository pageRepository, GlobalSettingService globalSettingService) {
         this.huntlyProperties = huntlyProperties;
         this.folderRepository = folderRepository;
         this.connectorSettingRepository = connectorSettingRepository;
         this.connectorRepository = connectorRepository;
+        this.sourceRepository = sourceRepository;
         this.pageRepository = pageRepository;
         this.globalSettingService = globalSettingService;
     }
@@ -115,7 +117,28 @@ public class ConnectorService {
         FolderConnectorView view = new FolderConnectorView();
         view.setFolderConnectors(getFolderConnectors(folders, connectors, false));
         view.setFolderFeedConnectors(getFolderConnectors(folders, connectors, true));
+        view.setFolderSources(getFolderSources());
         return view;
+    }
+
+    private List<SourceItem> getFolderSources() {
+        List<Object[]> results = sourceRepository.getSourceWithTotal();
+        List<Source> sources = results.stream().map(result -> {
+                    Source source = (Source) result[0];
+                    source.setTotal(((Long) result[1]).intValue());
+                    return source;
+                }).sorted((s1, s2) -> Integer.compare(s2.getTotal(), s1.getTotal()))
+                .collect(Collectors.toList());
+        return sources.stream().map(this::convertToSourceItem).collect(Collectors.toList());
+    }
+
+    public SourceItem convertToSourceItem(Source source) {
+        SourceItem sourceItem = new SourceItem();
+        sourceItem.setId(source.getId());
+        sourceItem.setSiteName(source.getSiteName());
+        sourceItem.setFaviconUrl(source.getFaviconUrl());
+        sourceItem.setTotal(source.getTotal());
+        return sourceItem;
     }
 
     private List<FolderConnectors> getFolderConnectors(List<Folder> folders, List<Connector> connectors, boolean isRss) {
