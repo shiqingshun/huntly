@@ -128,7 +128,6 @@ const PageList = (props: PageListProps) => {
         lastPage && lastPage.length > 0 && lastPage.length >= pageSize
           ? (filters.sort === 'VOTE_SCORE' ? {lastVoteScore: lastPage[lastPage.length - 1].voteScore} : {lastRecordAt: lastPage[lastPage.length - 1].recordAt})
           : undefined,
-      enabled: filters.sourceId !== undefined,
     },
   );
 
