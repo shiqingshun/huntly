@@ -64,4 +64,19 @@ public interface PageRepository extends JpaRepository<Page, Long>, JpaSpecificat
 
     @Query("SELECT COUNT(p) FROM Page p WHERE p.sourceId = :sourceId")
     int countBySourceId(Integer sourceId);
+
+    @Modifying(clearAutomatically = true)
+    @Transactional
+    @Query(nativeQuery = true, value = "UPDATE page\n" +
+            "SET title = CASE\n" +
+            "    WHEN title LIKE '(%' AND substr(title, 1, instr(title, ')')) GLOB '(*[0-9]*)'\n" +
+            "    THEN trim(substr(title, instr(title, ')') + 1))\n" +
+            "    \n" +
+            "    WHEN title LIKE '(%私信%' OR title LIKE '(%消息%'\n" +
+            "    THEN trim(substr(title, instr(title, ')') + 1))\n" +
+            "    \n" +
+            "    ELSE title\n" +
+            "END\n" +
+            "WHERE title LIKE '(%';")
+    int cleanPageTitles();
 }

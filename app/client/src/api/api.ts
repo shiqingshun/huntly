@@ -3026,6 +3026,36 @@ export const PageControllerApiAxiosParamCreator = function (configuration?: Conf
         },
         /**
          * 
+         * @summary cleanPageTitles
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cleanPageTitlesUsingPOST: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/page/cleanTitles`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
          * @summary deletePage
          * @param {number} id id
          * @param {*} [options] Override http request option.
@@ -3828,6 +3858,16 @@ export const PageControllerApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary cleanPageTitles
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async cleanPageTitlesUsingPOST(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ApiResultOfint>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.cleanPageTitlesUsingPOST(options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+        /**
+         * 
          * @summary deletePage
          * @param {number} id id
          * @param {*} [options] Override http request option.
@@ -4087,6 +4127,15 @@ export const PageControllerApiFactory = function (configuration?: Configuration,
         },
         /**
          * 
+         * @summary cleanPageTitles
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cleanPageTitlesUsingPOST(options?: any): AxiosPromise<ApiResultOfint> {
+            return localVarFp.cleanPageTitlesUsingPOST(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
          * @summary deletePage
          * @param {number} id id
          * @param {*} [options] Override http request option.
@@ -4324,6 +4373,17 @@ export class PageControllerApi extends BaseAPI {
      */
     public archiveToLibraryUsingPOST(id: number, options?: AxiosRequestConfig) {
         return PageControllerApiFp(this.configuration).archiveToLibraryUsingPOST(id, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary cleanPageTitles
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PageControllerApi
+     */
+    public cleanPageTitlesUsingPOST(options?: AxiosRequestConfig) {
+        return PageControllerApiFp(this.configuration).cleanPageTitlesUsingPOST(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**

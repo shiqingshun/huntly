@@ -304,4 +304,14 @@ public class PageService extends BasePageService {
         }
         return page;
     }
+
+    /**
+     * 清理页面标题中的无用前缀
+     * 1. 移除类似 "(1)" 这样的数字前缀
+     * 2. 移除类似 "(9 封私信 / 11 条消息)" 这样的消息提示前缀
+     * @return 返回更新的记录数
+     */
+    public int cleanPageTitles() {
+        return pageRepository.cleanPageTitles();
+    }
 }
