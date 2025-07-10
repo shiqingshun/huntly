@@ -578,6 +578,12 @@ export interface FolderConnectorView {
      * @memberof FolderConnectorView
      */
     'folderFeedConnectors'?: Array<FolderConnectors>;
+    /**
+     * 
+     * @type {Array<SourceItem>}
+     * @memberof FolderConnectorView
+     */
+    'folderSources'?: Array<SourceItem>;
 }
 /**
  * 
@@ -1691,6 +1697,43 @@ export interface Source {
      * @memberof Source
      */
     'subscribeUrl'?: string;
+    /**
+     * 
+     * @type {number}
+     * @memberof Source
+     */
+    'total'?: number;
+}
+/**
+ * 
+ * @export
+ * @interface SourceItem
+ */
+export interface SourceItem {
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceItem
+     */
+    'faviconUrl'?: string;
+    /**
+     * 
+     * @type {number}
+     * @memberof SourceItem
+     */
+    'id'?: number;
+    /**
+     * 
+     * @type {string}
+     * @memberof SourceItem
+     */
+    'siteName'?: string;
+    /**
+     * 
+     * @type {number}
+     * @memberof SourceItem
+     */
+    'total'?: number;
 }
 /**
  * 
@@ -2879,11 +2922,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
     return {
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingDELETE: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingDELETE: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -2909,11 +2952,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingGET: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingGET: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -2939,11 +2982,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingHEAD: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingHEAD: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -2969,11 +3012,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingOPTIONS: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingOPTIONS: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -2999,11 +3042,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingPATCH: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingPATCH: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -3029,11 +3072,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingPOST: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingPOST: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -3059,11 +3102,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingPUT: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingPUT: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -3089,11 +3132,11 @@ export const BasicErrorControllerApiAxiosParamCreator = function (configuration?
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingTRACE: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+        errorHtmlUsingTRACE: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
             const localVarPath = `/error`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
@@ -3129,82 +3172,82 @@ export const BasicErrorControllerApiFp = function(configuration?: Configuration)
     return {
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingDELETE(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingDELETE(options);
+        async errorHtmlUsingDELETE(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingDELETE(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingGET(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingGET(options);
+        async errorHtmlUsingGET(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingGET(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingHEAD(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingHEAD(options);
+        async errorHtmlUsingHEAD(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingHEAD(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingOPTIONS(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingOPTIONS(options);
+        async errorHtmlUsingOPTIONS(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingOPTIONS(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingPATCH(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingPATCH(options);
+        async errorHtmlUsingPATCH(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingPATCH(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingPOST(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingPOST(options);
+        async errorHtmlUsingPOST(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingPOST(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingPUT(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingPUT(options);
+        async errorHtmlUsingPUT(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingPUT(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        async errorUsingTRACE(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<{ [key: string]: object; }>> {
-            const localVarAxiosArgs = await localVarAxiosParamCreator.errorUsingTRACE(options);
+        async errorHtmlUsingTRACE(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ModelAndView>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.errorHtmlUsingTRACE(options);
             return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
         },
     }
@@ -3219,75 +3262,75 @@ export const BasicErrorControllerApiFactory = function (configuration?: Configur
     return {
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingDELETE(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingDELETE(options).then((request) => request(axios, basePath));
+        errorHtmlUsingDELETE(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingDELETE(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingGET(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingGET(options).then((request) => request(axios, basePath));
+        errorHtmlUsingGET(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingGET(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingHEAD(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingHEAD(options).then((request) => request(axios, basePath));
+        errorHtmlUsingHEAD(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingHEAD(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingOPTIONS(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingOPTIONS(options).then((request) => request(axios, basePath));
+        errorHtmlUsingOPTIONS(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingOPTIONS(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingPATCH(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingPATCH(options).then((request) => request(axios, basePath));
+        errorHtmlUsingPATCH(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingPATCH(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingPOST(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingPOST(options).then((request) => request(axios, basePath));
+        errorHtmlUsingPOST(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingPOST(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingPUT(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingPUT(options).then((request) => request(axios, basePath));
+        errorHtmlUsingPUT(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingPUT(options).then((request) => request(axios, basePath));
         },
         /**
          * 
-         * @summary error
+         * @summary errorHtml
          * @param {*} [options] Override http request option.
          * @throws {RequiredError}
          */
-        errorUsingTRACE(options?: any): AxiosPromise<{ [key: string]: object; }> {
-            return localVarFp.errorUsingTRACE(options).then((request) => request(axios, basePath));
+        errorHtmlUsingTRACE(options?: any): AxiosPromise<ModelAndView> {
+            return localVarFp.errorHtmlUsingTRACE(options).then((request) => request(axios, basePath));
         },
     };
 };
@@ -3301,90 +3344,90 @@ export const BasicErrorControllerApiFactory = function (configuration?: Configur
 export class BasicErrorControllerApi extends BaseAPI {
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingDELETE(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingDELETE(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingDELETE(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingDELETE(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingGET(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingGET(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingGET(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingGET(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingHEAD(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingHEAD(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingHEAD(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingHEAD(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingOPTIONS(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingOPTIONS(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingOPTIONS(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingOPTIONS(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingPATCH(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingPATCH(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingPATCH(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingPATCH(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingPOST(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingPOST(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingPOST(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingPOST(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingPUT(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingPUT(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingPUT(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingPUT(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
      * 
-     * @summary error
+     * @summary errorHtml
      * @param {*} [options] Override http request option.
      * @throws {RequiredError}
      * @memberof BasicErrorControllerApi
      */
-    public errorUsingTRACE(options?: AxiosRequestConfig) {
-        return BasicErrorControllerApiFp(this.configuration).errorUsingTRACE(options).then((request) => request(this.axios, this.basePath));
+    public errorHtmlUsingTRACE(options?: AxiosRequestConfig) {
+        return BasicErrorControllerApiFp(this.configuration).errorHtmlUsingTRACE(options).then((request) => request(this.axios, this.basePath));
     }
 }
 
@@ -3775,6 +3818,36 @@ export const PageControllerApiAxiosParamCreator = function (configuration?: Conf
             assertParamExists('archiveToLibraryUsingPOST', 'id', id)
             const localVarPath = `/api/page/archive/{id}`
                 .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary cleanPageTitles
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cleanPageTitlesUsingPOST: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/page/cleanTitles`;
             // use dummy base URL string because the URL constructor only accepts absolute URLs.
             const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
             let baseOptions;
@@ -4681,6 +4754,16 @@ export const PageControllerApiFp = function(configuration?: Configuration) {
         },
         /**
          * 
+         * @summary cleanPageTitles
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async cleanPageTitlesUsingPOST(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<ApiResultOfint>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.cleanPageTitlesUsingPOST(options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+        /**
+         * 
          * @summary deletePage
          * @param {number} id id
          * @param {*} [options] Override http request option.
@@ -4964,6 +5047,15 @@ export const PageControllerApiFactory = function (configuration?: Configuration,
         },
         /**
          * 
+         * @summary cleanPageTitles
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        cleanPageTitlesUsingPOST(options?: any): AxiosPromise<ApiResultOfint> {
+            return localVarFp.cleanPageTitlesUsingPOST(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
          * @summary deletePage
          * @param {number} id id
          * @param {*} [options] Override http request option.
@@ -5223,6 +5315,17 @@ export class PageControllerApi extends BaseAPI {
      */
     public archiveToLibraryUsingPOST(id: number, options?: AxiosRequestConfig) {
         return PageControllerApiFp(this.configuration).archiveToLibraryUsingPOST(id, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary cleanPageTitles
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof PageControllerApi
+     */
+    public cleanPageTitlesUsingPOST(options?: AxiosRequestConfig) {
+        return PageControllerApiFp(this.configuration).cleanPageTitlesUsingPOST(options).then((request) => request(this.axios, this.basePath));
     }
 
     /**
@@ -7239,6 +7342,238 @@ export class SettingControllerApi extends BaseAPI {
      */
     public updateLoginUserUsingPOST(name?: string, loginRequest?: LoginRequest, options?: AxiosRequestConfig) {
         return SettingControllerApiFp(this.configuration).updateLoginUserUsingPOST(name, loginRequest, options).then((request) => request(this.axios, this.basePath));
+    }
+}
+
+
+/**
+ * SourceControllerApi - axios parameter creator
+ * @export
+ */
+export const SourceControllerApiAxiosParamCreator = function (configuration?: Configuration) {
+    return {
+        /**
+         * 
+         * @summary deleteSource
+         * @param {number} id id
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        deleteSourceUsingDELETE: async (id: number, options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            // verify required parameter 'id' is not null or undefined
+            assertParamExists('deleteSourceUsingDELETE', 'id', id)
+            const localVarPath = `/api/source/{id}`
+                .replace(`{${"id"}}`, encodeURIComponent(String(id)));
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'DELETE', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary getSources
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getSourcesUsingGET: async (options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/source/all`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'GET', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+        /**
+         * 
+         * @summary saveSource
+         * @param {Source} [source] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveSourceUsingPOST: async (source?: Source, options: AxiosRequestConfig = {}): Promise<RequestArgs> => {
+            const localVarPath = `/api/source/save`;
+            // use dummy base URL string because the URL constructor only accepts absolute URLs.
+            const localVarUrlObj = new URL(localVarPath, DUMMY_BASE_URL);
+            let baseOptions;
+            if (configuration) {
+                baseOptions = configuration.baseOptions;
+            }
+
+            const localVarRequestOptions = { method: 'POST', ...baseOptions, ...options};
+            const localVarHeaderParameter = {} as any;
+            const localVarQueryParameter = {} as any;
+
+
+    
+            localVarHeaderParameter['Content-Type'] = 'application/json';
+
+            setSearchParams(localVarUrlObj, localVarQueryParameter);
+            let headersFromBaseOptions = baseOptions && baseOptions.headers ? baseOptions.headers : {};
+            localVarRequestOptions.headers = {...localVarHeaderParameter, ...headersFromBaseOptions, ...options.headers};
+            localVarRequestOptions.data = serializeDataIfNeeded(source, localVarRequestOptions, configuration)
+
+            return {
+                url: toPathString(localVarUrlObj),
+                options: localVarRequestOptions,
+            };
+        },
+    }
+};
+
+/**
+ * SourceControllerApi - functional programming interface
+ * @export
+ */
+export const SourceControllerApiFp = function(configuration?: Configuration) {
+    const localVarAxiosParamCreator = SourceControllerApiAxiosParamCreator(configuration)
+    return {
+        /**
+         * 
+         * @summary deleteSource
+         * @param {number} id id
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async deleteSourceUsingDELETE(id: number, options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<boolean>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.deleteSourceUsingDELETE(id, options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+        /**
+         * 
+         * @summary getSources
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async getSourcesUsingGET(options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Array<Source>>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.getSourcesUsingGET(options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+        /**
+         * 
+         * @summary saveSource
+         * @param {Source} [source] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        async saveSourceUsingPOST(source?: Source, options?: AxiosRequestConfig): Promise<(axios?: AxiosInstance, basePath?: string) => AxiosPromise<Source>> {
+            const localVarAxiosArgs = await localVarAxiosParamCreator.saveSourceUsingPOST(source, options);
+            return createRequestFunction(localVarAxiosArgs, globalAxios, BASE_PATH, configuration);
+        },
+    }
+};
+
+/**
+ * SourceControllerApi - factory interface
+ * @export
+ */
+export const SourceControllerApiFactory = function (configuration?: Configuration, basePath?: string, axios?: AxiosInstance) {
+    const localVarFp = SourceControllerApiFp(configuration)
+    return {
+        /**
+         * 
+         * @summary deleteSource
+         * @param {number} id id
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        deleteSourceUsingDELETE(id: number, options?: any): AxiosPromise<boolean> {
+            return localVarFp.deleteSourceUsingDELETE(id, options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
+         * @summary getSources
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        getSourcesUsingGET(options?: any): AxiosPromise<Array<Source>> {
+            return localVarFp.getSourcesUsingGET(options).then((request) => request(axios, basePath));
+        },
+        /**
+         * 
+         * @summary saveSource
+         * @param {Source} [source] 
+         * @param {*} [options] Override http request option.
+         * @throws {RequiredError}
+         */
+        saveSourceUsingPOST(source?: Source, options?: any): AxiosPromise<Source> {
+            return localVarFp.saveSourceUsingPOST(source, options).then((request) => request(axios, basePath));
+        },
+    };
+};
+
+/**
+ * SourceControllerApi - object-oriented interface
+ * @export
+ * @class SourceControllerApi
+ * @extends {BaseAPI}
+ */
+export class SourceControllerApi extends BaseAPI {
+    /**
+     * 
+     * @summary deleteSource
+     * @param {number} id id
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourceControllerApi
+     */
+    public deleteSourceUsingDELETE(id: number, options?: AxiosRequestConfig) {
+        return SourceControllerApiFp(this.configuration).deleteSourceUsingDELETE(id, options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary getSources
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourceControllerApi
+     */
+    public getSourcesUsingGET(options?: AxiosRequestConfig) {
+        return SourceControllerApiFp(this.configuration).getSourcesUsingGET(options).then((request) => request(this.axios, this.basePath));
+    }
+
+    /**
+     * 
+     * @summary saveSource
+     * @param {Source} [source] 
+     * @param {*} [options] Override http request option.
+     * @throws {RequiredError}
+     * @memberof SourceControllerApi
+     */
+    public saveSourceUsingPOST(source?: Source, options?: AxiosRequestConfig) {
+        return SourceControllerApiFp(this.configuration).saveSourceUsingPOST(source, options).then((request) => request(this.axios, this.basePath));
     }
 }
 

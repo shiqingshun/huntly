@@ -9,4 +9,6 @@ public class FolderConnectorView {
     private List<FolderConnectors> folderConnectors;
 
     private List<FolderConnectors> folderFeedConnectors;
+
+    private List<SourceItem> folderSources;
 }

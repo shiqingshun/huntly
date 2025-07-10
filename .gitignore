@@ -41,3 +41,6 @@ db.sqlite*
 .specstory/
 
 .vscode/
+
+/lucene
+/feed_cache

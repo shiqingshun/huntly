@@ -19,6 +19,10 @@ import SettingsApplicationsIcon from '@mui/icons-material/SettingsApplications';
 import GeneralSetting from "./GeneralSetting";
 import ShortTextIcon from '@mui/icons-material/ShortText';
 import ArticleShortcutSetting from "./ArticleShortcutSetting";
+import LanguageIcon from '@mui/icons-material/Language';
+import {SourceManage} from "./SourceManage";
+import ArticleIcon from '@mui/icons-material/Article';
+import PageSetting from "./PageSetting";
 
 type SettingModalProps = {
   open: boolean,
@@ -103,6 +107,24 @@ export default function SettingModal(props: SettingModalProps) {
               </ListItemIcon>
               <ListItemText primary="Account"/>
             </ListItemButton>
+            <ListItemButton
+              selected={selectedIndex === 6}
+              onClick={(event) => handleListItemClick(event, 6)}
+            >
+              <ListItemIcon>
+                <LanguageIcon/>
+              </ListItemIcon>
+              <ListItemText primary="Sources"/>
+            </ListItemButton>
+            <ListItemButton
+              selected={selectedIndex === 7}
+              onClick={(event) => handleListItemClick(event, 7)}
+            >
+              <ListItemIcon>
+                <ArticleIcon/>
+              </ListItemIcon>
+              <ListItemText primary="Pages"/>
+            </ListItemButton>
           </List>
         </div>
 
@@ -125,6 +147,12 @@ export default function SettingModal(props: SettingModalProps) {
             }
             {
               selectedIndex === 5 && <AccountSetting/>
+            }
+            {
+              selectedIndex === 6 && <SourceManage/>
+            }
+            {
+              selectedIndex === 7 && <PageSetting/>
             }
           </div>
         </div>
