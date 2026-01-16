@@ -18,6 +18,7 @@ import java.time.Instant;
         @Index(name = "idx_page_connector_type", columnList = "connector_type"),
         @Index(name = "idx_page_content_type", columnList = "content_type"),
         @Index(name = "idx_page_folder_id", columnList = "folder_id"),
+        @Index(name = "idx_page_source_id", columnList = "source_id"),
         @Index(name = "idx_page_library_saved_at", columnList = "library_save_status, saved_at DESC"),
         @Index(name = "idx_page_library_archived_at", columnList = "library_save_status, archived_at DESC"),
         @Index(name = "idx_page_starred_at", columnList = "is_starred, starred_at DESC"),

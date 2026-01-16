@@ -8,6 +8,8 @@ import FolderOpenIcon from '@mui/icons-material/FolderOpen';
 import LocalLibraryOutlinedIcon from '@mui/icons-material/LocalLibraryOutlined';
 import AccountBoxIcon from '@mui/icons-material/AccountBox';
 import TerminalIcon from '@mui/icons-material/Terminal';
+import LanguageIcon from '@mui/icons-material/Language';
+import ArticleIcon from '@mui/icons-material/Article';
 import { SvgIconProps } from "@mui/material/SvgIcon";
 import * as React from "react";
 
@@ -27,6 +29,8 @@ const settingsItems: SettingsNavItem[] = [
   { labelText: 'Folders', labelIcon: FolderOpenIcon, linkTo: '/settings/folders' },
   // { labelText: 'Library', labelIcon: LocalLibraryOutlinedIcon, linkTo: '/settings/library' },
   { labelText: 'Account', labelIcon: AccountBoxIcon, linkTo: '/settings/account' },
+  { labelText: 'Sources', labelIcon: LanguageIcon, linkTo: '/settings/sources' },
+  { labelText: 'Pages', labelIcon: ArticleIcon, linkTo: '/settings/pages' },
 ];
 
 type SettingsNavTreeProps = {

@@ -58,6 +58,7 @@ export type PageFilterOptions = {
   sortFields: SortField[]
   defaultSortValue: SORT_VALUE,
   asc: boolean,
+  sourceId?: number,
   hideContentTypeFilter?: boolean,
   contentFilterType?: number,
   startDate?: string
@@ -180,7 +181,7 @@ const customStaticRanges = [
 
 export default function PageFilters(props: PageFilterProps) {
   const {options, onChange} = props;
-  const {sortFields, defaultSortValue, asc, hideContentTypeFilter, contentFilterType, startDate, endDate, showAllArticles, showAllArticlesOption} = options;
+  const {sortFields, defaultSortValue, asc, hideContentTypeFilter, contentFilterType, startDate, endDate, sourceId, showAllArticles, showAllArticlesOption} = options;
   const [pickerAnchorEl, setPickerAnchorEl] = React.useState(null);
   const parsedStart = parseDateTimeString(startDate);
   const parsedEnd = parseDateTimeString(endDate);

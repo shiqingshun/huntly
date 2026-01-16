@@ -13,6 +13,8 @@ import MyList from "./pages/MyList";
 import Starred from "./pages/Starred";
 import ReadLater from "./pages/ReadLater";
 import Archive from "./pages/Archive";
+import Source from "./pages/Source";
+import Sources from "./pages/Sources";
 import ConnectorList from "./pages/ConnectorList";
 import FolderList from "./pages/FolderList";
 import AllFeeds from "./pages/AllFeeds";
@@ -31,6 +33,8 @@ import SettingsFeeds from "./pages/settings/SettingsFeeds";
 import SettingsFolders from "./pages/settings/SettingsFolders";
 import SettingsLibrary from "./pages/settings/SettingsLibrary";
 import SettingsAccount from "./pages/settings/SettingsAccount";
+import SettingsSources from "./pages/settings/SettingsSources";
+import SettingsPages from "./pages/settings/SettingsPages";
 
 function App() {
   const router = createBrowserRouter(
@@ -46,6 +50,8 @@ function App() {
           <Route path={"/archive"} element={<Archive />} />
           <Route path="/page/:id" element={<Page />} />
           <Route path="/connector/:id" element={<ConnectorList />} />
+          <Route path="/source/:id" element={<Source/>}/>
+          <Route path="/sources" element={<Sources />} />
           <Route path="/folder/:id" element={<FolderList />} />
           <Route path="/feeds" element={<AllFeeds />} />
           <Route path="/search" element={<Search />} />
@@ -60,6 +66,8 @@ function App() {
           <Route path="/settings/folders" element={<SettingsFolders />} />
           <Route path="/settings/library" element={<SettingsLibrary />} />
           <Route path="/settings/account" element={<SettingsAccount />} />
+          <Route path="/settings/sources" element={<SettingsSources />} />
+          <Route path="/settings/pages" element={<SettingsPages />} />
         </Route>
       </Route>
     )

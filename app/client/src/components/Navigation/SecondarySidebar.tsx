@@ -7,6 +7,7 @@ import { ConnectorControllerApiFactory, ConnectorItem, FolderConnectors, PageCon
 import NavTreeView, { NavTreeViewItem } from "../Sidebar/NavTreeView";
 import FolderOpenIcon from "@mui/icons-material/FolderOpen";
 import RssFeedIcon from "@mui/icons-material/RssFeed";
+import SourceIcon from "@mui/icons-material/Source";
 import { Link, useLocation } from "react-router-dom";
 import navLabels from "../Sidebar/NavLabels";
 import { ConnectorType } from "../../interfaces/connectorType";
@@ -146,6 +147,46 @@ const FeedsContent: React.FC = () => {
   );
 };
 
+// Sources content component - only mounts when sources nav is active
+const SourcesContent: React.FC = () => {
+  const location = useLocation();
+
+  const { data: view } = useQuery(
+    ['folder-connector-view'],
+    async () => (await ConnectorControllerApiFactory().getFolderConnectorViewUsingGET()).data,
+    {
+      refetchInterval: 5000,
+    }
+  );
+
+  const treeItems: NavTreeViewItem[] = view?.folderSources
+    ? [...view.folderSources]
+        .sort((a, b) => (b.total || 0) - (a.total || 0))
+        .map((source) => ({
+          labelText: source.siteName || 'Unknown Source',
+          labelIcon: SourceIcon,
+          linkTo: source.id ? `/source/${source.id}` : undefined,
+          inboxCount: source.total || 0,
+          iconUrl: source.faviconUrl,
+        }))
+    : [];
+
+  return (
+    <>
+      {leadingHeader('Sources', false)}
+      {treeItems.length > 0 && (
+        <NavTreeView
+          treeItems={treeItems}
+          ariaLabel="sources"
+          defaultExpanded={[]}
+          selectedNodeId={location.pathname}
+          emphasizeCounts={true}
+        />
+      )}
+    </>
+  );
+};
+
 // Saved content component - only mounts when saved nav is active
 const SavedContent: React.FC = () => {
   const location = useLocation();
@@ -201,6 +242,15 @@ const SecondarySidebar: React.FC = () => {
         <div className="secondary-sidebar">
           <div className="secondary-sidebar-content">
             <FeedsContent />
+          </div>
+        </div>
+      );
+
+    case 'sources':
+      return (
+        <div className="secondary-sidebar">
+          <div className="secondary-sidebar-content">
+            <SourcesContent />
           </div>
         </div>
       );

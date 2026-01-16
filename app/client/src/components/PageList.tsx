@@ -79,7 +79,7 @@ const PageList = (props: PageListProps) => {
   const [showDoneTip, setShowDoneTip] = useState(false);
   const [lastVisitPageId, setLastVisitPageId] = useState(0);
   const pageSize = filters.count || 20;
-  const queryKey = useMemo(() => [PageQueryKey.PageList, filters], [filters]);
+  const queryKey = useMemo(() => [PageQueryKey.PageList, filters, filters.sourceId], [filters]);
 
   // ============ Scroll Tracking State and Logic ============
   const shouldEnableScrollTracking = hasMarkReadOnScrollFeature && markReadOnScroll;
