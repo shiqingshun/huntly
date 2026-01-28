@@ -22,7 +22,7 @@ const LayoutContent = () => {
   },[location.pathname]);
 
   // Check if current nav has secondary sidebar
-  const hasSecondarySidebar = activeNav === 'saved' || activeNav === 'feeds' || activeNav === 'settings';
+  const hasSecondarySidebar = activeNav === 'saved' || activeNav === 'sources' || activeNav === 'feeds' || activeNav === 'settings';
 
   return (
     <div className="h-full layoutRoot">

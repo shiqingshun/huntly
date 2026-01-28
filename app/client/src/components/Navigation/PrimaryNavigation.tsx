@@ -5,6 +5,7 @@ import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
 import HomeIcon from '@mui/icons-material/Home';
 import LocalLibraryOutlinedIcon from '@mui/icons-material/LocalLibraryOutlined';
 import LocalLibraryIcon from '@mui/icons-material/LocalLibrary';
+import SourceIcon from '@mui/icons-material/Source';
 import RssFeedIcon from '@mui/icons-material/RssFeed';
 import GitHubIcon from '@mui/icons-material/GitHub';
 import SearchIcon from '@mui/icons-material/Search';
@@ -225,6 +226,41 @@ const MobileFeedsContent: React.FC<{ selectedNodeId: string }> = ({ selectedNode
   );
 };
 
+// Mobile menu content for Sources - fetches data only when mounted
+const MobileSourcesContent: React.FC<{ selectedNodeId: string }> = ({ selectedNodeId }) => {
+  const { data: view } = useQuery(
+    ['folder-connector-view'],
+    async () => (await ConnectorControllerApiFactory().getFolderConnectorViewUsingGET()).data,
+  );
+
+  const getSourcesTreeItems = (): NavTreeViewItem[] => {
+    if (!view?.folderSources) return [];
+
+    return [...view.folderSources]
+      .sort((a, b) => (b.total || 0) - (a.total || 0))
+      .map((item) => ({
+        labelText: item.siteName || 'Unknown Source',
+        labelIcon: SourceIcon,
+        linkTo: item.id ? `/source/${item.id}` : undefined,
+        inboxCount: item.total || 0,
+        iconUrl: item.faviconUrl,
+      }));
+  };
+
+  return (
+    <>
+      <div className="mobile-menu-header">Sources</div>
+      <NavTreeView
+        treeItems={getSourcesTreeItems()}
+        ariaLabel="sources"
+        defaultExpanded={[]}
+        selectedNodeId={selectedNodeId}
+        emphasizeCounts={true}
+      />
+    </>
+  );
+};
+
 // Mobile menu content for Settings
 const MobileSettingsContent: React.FC<{ selectedNodeId: string }> = ({ selectedNodeId }) => {
   return (
@@ -245,6 +281,7 @@ const getActiveNavFromPath = (
   if (path.startsWith('/page/')) return null;
   if (path === '/' || path === '/recently-read') return 'home';
   if (['/list', '/starred', '/later', '/archive', '/highlights'].includes(path)) return 'saved';
+  if (path === '/sources' || path.startsWith('/source/')) return 'sources';
   if (path.startsWith('/collection/')) return 'saved';
   if (path === '/feeds') return 'feeds';
   if (path === '/twitter') return 'x';
@@ -270,7 +307,7 @@ const PrimaryNavigation: React.FC = () => {
   const location = useLocation();
   const queryClient = useQueryClient();
   const { activeNav, setActiveNav } = useNavigation();
-  const [mobileMenuOpen, setMobileMenuOpen] = useState<'saved' | 'feeds' | 'settings' | null>(null);
+  const [mobileMenuOpen, setMobileMenuOpen] = useState<'saved' | 'sources' | 'feeds' | 'settings' | null>(null);
 
   const isMobile = () => window.innerWidth <= 900;
 
@@ -304,6 +341,12 @@ const PrimaryNavigation: React.FC = () => {
       activeIcon: <LocalLibraryIcon />,
       label: 'Library',
       path: '/list',
+    },
+    {
+      id: 'sources',
+      icon: <SourceIcon />,
+      label: 'Sources',
+      path: '/sources',
     },
     {
       id: 'feeds',
@@ -341,7 +384,7 @@ const PrimaryNavigation: React.FC = () => {
 
   // Handle nav item click - on mobile, show popup for items with secondary menu
   const handleNavClick = (e: React.MouseEvent, item: NavItemConfig) => {
-    if (isMobile() && (item.id === 'saved' || item.id === 'feeds' || item.id === 'settings')) {
+    if (isMobile() && (item.id === 'saved' || item.id === 'sources' || item.id === 'feeds' || item.id === 'settings')) {
       e.preventDefault();
       setMobileMenuOpen(item.id);
     }
@@ -432,6 +475,9 @@ const PrimaryNavigation: React.FC = () => {
           <div className="mobile-menu-content">
             {mobileMenuOpen === 'saved' && (
               <MobileLibraryContent selectedNodeId={location.pathname} />
+            )}
+            {mobileMenuOpen === 'sources' && (
+              <MobileSourcesContent selectedNodeId={location.pathname} />
             )}
             {mobileMenuOpen === 'feeds' && (
               <MobileFeedsContent selectedNodeId={location.pathname} />

@@ -8,6 +8,8 @@ import GitHubIcon from '@mui/icons-material/GitHub';
 import { SvgIconProps } from "@mui/material/SvgIcon";
 import NavListItem from "../shared/NavListItem";
 import SidebarHeader from "../shared/SidebarHeader";
+import LanguageIcon from '@mui/icons-material/Language';
+import ArticleIcon from '@mui/icons-material/Article';
 
 interface SettingsNavItem {
   labelText: string;
@@ -23,6 +25,8 @@ const settingsItems: SettingsNavItem[] = [
   { labelText: 'Feeds', labelIcon: RssFeedIcon, linkTo: '/settings/feeds' },
   { labelText: 'GitHub', labelIcon: GitHubIcon, linkTo: '/settings/github' },
   { labelText: 'Account', labelIcon: AccountBoxIcon, linkTo: '/settings/account' },
+  { labelText: 'Sources', labelIcon: LanguageIcon, linkTo: '/settings/sources' },
+  { labelText: 'Pages', labelIcon: ArticleIcon, linkTo: '/settings/pages' },
 ];
 
 interface SettingsNavProps {

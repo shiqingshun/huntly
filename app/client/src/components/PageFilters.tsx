@@ -62,6 +62,7 @@ export type PageFilterOptions = {
   sortFields: SortField[]
   defaultSortValue: SORT_VALUE,
   asc: boolean,
+  sourceId?: number,
   hideContentTypeFilter?: boolean,
   contentFilterType?: number,
   startDate?: string

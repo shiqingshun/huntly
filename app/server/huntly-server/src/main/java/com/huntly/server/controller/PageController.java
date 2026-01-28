@@ -270,4 +270,19 @@ public class PageController {
         private String mode = "standard";
         private String title = "";
     }
+
+    /**
+     * 清理页面标题的批处理接口
+     * 主要用于清理以下格式的标题：
+     * 1. "(1) X 上的..." -> "X 上的..."
+     * 2. "(9 封私信 / 11 条消息) 标题" -> "标题"
+     *
+     * @return ApiResult 包含更新的记录数
+     */
+    @PostMapping("/cleanTitles")
+    public ApiResult<Integer> cleanPageTitles() {
+        int updatedCount = pageService.cleanPageTitles();
+        return ApiResult.ok(updatedCount);
+    }
+    
 }

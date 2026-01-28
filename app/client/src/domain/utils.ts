@@ -5,6 +5,7 @@ export function getPageListFilter(filterOptions:PageFilterOptions) : PageListFil
   return {
     sort: filterOptions.defaultSortValue,
     asc: filterOptions.asc,
+    sourceId: filterOptions.sourceId,
     contentFilterType: filterOptions.contentFilterType,
     startDate: filterOptions.startDate || undefined,
     endDate: filterOptions.endDate || undefined,
