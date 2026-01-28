@@ -1,6 +1,6 @@
 import {log} from "./logger";
 import {readSyncStorageSettings, getPromptsSettings} from "./storage";
-import {autoSaveArticle, saveArticle, sendData, fetchEnabledShortcuts, fetchGlobalSetting, getApiBaseUrl} from "./services";
+import {autoSaveArticle, saveArticle, sendData, fetchEnabledShortcuts, getApiBaseUrl} from "./services";
 import {sseRequestManager} from "./sseTaskManager";
 import {
   getAIProvidersStorage,
@@ -241,11 +241,8 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
   } else if (msg.type === "save_clipper") {
     saveArticle(msg.payload);
   } else if (msg.type === 'auto_save_tweets') {
-    readSyncStorageSettings().then(async (settings) => {
+    readSyncStorageSettings().then((settings) => {
       if (settings.autoSaveTweet) {
-        // Fetch minLikes from server's GlobalSetting
-        const globalSetting = await fetchGlobalSetting();
-        msg.payload.minLikes = globalSetting?.autoSaveTweetMinLikes ?? 0;
         sendData("tweet/saveTweets", msg.payload);
       }
     });
