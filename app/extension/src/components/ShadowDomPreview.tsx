@@ -157,7 +157,7 @@ export const ShadowDomPreview: React.FC<ShadowDomPreviewProps> = (props) => {
     );
   }, [props]);
 
-  return <div ref={hostRef} style={{ display: "contents" }} />;
+  return <div ref={hostRef} />;
 };
 
 export default ShadowDomPreview;

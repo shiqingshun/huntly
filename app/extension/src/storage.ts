@@ -112,7 +112,7 @@ export const DefaultStorageSettings: StorageSettings = {
   autoSaveEnabled: false,
   autoSaveTweet: false,
   contentParser: "readability",
-  defaultTargetLanguage: "Chinese",
+  defaultTargetLanguage: "English",
   huntlyShortcutsEnabled: true
 }
 

@@ -2,6 +2,12 @@
 // We use a separate file to avoid webpack's style-loader injecting into document head
 
 export const getShadowDomStyles = (): string => `
+/* Reset all inherited styles from host page to prevent external CSS interference */
+:host {
+  all: initial !important;
+  display: contents !important;
+}
+
 /* Reset box-sizing for Shadow DOM - don't reset margin/padding to avoid affecting MUI components */
 *, *::before, *::after {
   box-sizing: border-box;
@@ -13,6 +19,42 @@ export const getShadowDomStyles = (): string => `
   -moz-user-select: text !important;
   -ms-user-select: text !important;
   user-select: text !important;
+}
+
+/* Custom scrollbar styles to override any external page styles */
+::-webkit-scrollbar {
+  width: 8px;
+  height: 8px;
+}
+
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+  background: rgba(0, 0, 0, 0.2);
+  border-radius: 4px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+  background: rgba(0, 0, 0, 0.3);
+}
+
+/* Firefox scrollbar */
+* {
+  scrollbar-width: thin;
+  scrollbar-color: rgba(0, 0, 0, 0.2) transparent;
+}
+
+/* Shadow content container - reset all inherited styles */
+#huntly-shadow-content {
+  all: initial;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", Helvetica, Arial, sans-serif;
+  font-size: 16px;
+  line-height: 1.5;
+  color: #333;
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
 }
 
 /* Modal overlay styles */
@@ -27,6 +69,8 @@ export const getShadowDomStyles = (): string => `
   overscroll-behavior: none !important;
   background-color: rgba(0, 0, 0, 0.5);
   backdrop-filter: blur(4px);
+  /* Ensure modal overlay creates a new stacking context */
+  isolation: isolate;
 }
 
 /* Modal content */
@@ -96,6 +140,27 @@ export const getShadowDomStyles = (): string => `
   z-index: 0;
   /* Contain fixed/sticky nodes from parsed HTML so they cannot cover the header toolbar. */
   transform: translateZ(0);
+  /* Create a new stacking context to isolate internal positioned elements */
+  isolation: isolate;
+}
+
+/* Ensure elements inside scroll container don't escape and block text selection */
+.huntly-scroll-container * {
+  /* Reset any fixed/absolute positioning from external content that might escape */
+  max-width: 100%;
+}
+
+/* Force fixed/absolute elements inside scroll container to stay contained */
+.huntly-scroll-container [style*="position: fixed"],
+.huntly-scroll-container [style*="position:fixed"] {
+  position: absolute !important;
+}
+
+/* Ensure article content allows text selection */
+.huntly-scroll-container article,
+.huntly-scroll-container .huntly-markdown-body {
+  position: relative;
+  z-index: 1;
 }
 
 /* Processed section */

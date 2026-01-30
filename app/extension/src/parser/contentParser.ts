@@ -27,6 +27,25 @@ export function parseDocument(
 }
 
 /**
+ * Extract excerpt from HTML content
+ * @param html - The HTML content
+ * @param maxLength - Maximum length of excerpt (default 200)
+ */
+function extractExcerptFromContent(html: string, maxLength: number = 200): string {
+  if (!html) return "";
+  // Create a temporary element to parse HTML
+  const tempDiv = document.createElement("div");
+  tempDiv.innerHTML = html;
+  // Get text content and clean up whitespace
+  const text = (tempDiv.textContent || tempDiv.innerText || "")
+    .replace(/\s+/g, " ")
+    .trim();
+  // Return truncated text
+  if (text.length <= maxLength) return text;
+  return text.substring(0, maxLength).trim() + "...";
+}
+
+/**
  * Parse document using Mozilla Readability
  */
 function parseWithReadability(doc: Document): ParsedArticle | null {
@@ -34,10 +53,12 @@ function parseWithReadability(doc: Document): ParsedArticle | null {
   if (!article) {
     return null;
   }
+  // Ensure excerpt has a fallback value from content
+  const excerpt = article.excerpt || extractExcerptFromContent(article.content || "");
   return {
     title: article.title || "",
     content: article.content || "",
-    excerpt: article.excerpt || "",
+    excerpt,
     byline: article.byline || "",
     siteName: article.siteName || "",
   };
@@ -53,10 +74,12 @@ function parseWithDefuddle(doc: Document): ParsedArticle | null {
     if (!result || !result.content) {
       return null;
     }
+    // Ensure excerpt has a fallback value from content
+    const excerpt = result.description || extractExcerptFromContent(result.content || "");
     return {
       title: result.title || "",
       content: result.content || "",
-      excerpt: result.description || "",
+      excerpt,
       byline: result.author || "",
       siteName: result.site || "",
     };

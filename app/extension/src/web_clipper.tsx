@@ -35,7 +35,8 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
     const parserType = msg.payload?.parserType || cachedParserType;
     const webClipper = new WebClipper(parserType);
     const page = webClipper.parseDoc(document.cloneNode(true) as Document);
-    sendResponse({page, parserType});
+    const isHuntlySite = webClipper.hasHuntlyMeta(document);
+    sendResponse({page, parserType, isHuntlySite});
     return;
   } else if (msg.type === 'shortcuts_preview') {
     let page = msg.payload?.page;
@@ -191,9 +192,9 @@ export class WebClipper {
     this.savePureRead(true);
   }
 
-  hasHuntlyMeta(doc) {
+  hasHuntlyMeta(doc): boolean {
     // exclude huntly web app
-    return doc.querySelector("meta[data-huntly='1']");
+    return !!doc.querySelector("meta[data-huntly='1']");
   }
 
   isMaybeReadable() {
@@ -219,10 +220,6 @@ export class WebClipper {
   }
 
   parseDoc(doc: Document): PageModel {
-    if (this.hasHuntlyMeta(doc)) {
-      return null;
-    }
-
     const baseURI = getBaseURI(doc);
     const documentURI = doc.documentURI;
     const article = parseDocument(doc, this.parserType);

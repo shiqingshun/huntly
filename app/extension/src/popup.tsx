@@ -83,6 +83,7 @@ const Popup = () => {
     const [parserType, setParserType] = useState<ContentParserType>("readability");
     const [parsingArticle, setParsingArticle] = useState(false);
     const [parseFailed, setParseFailed] = useState(false);
+    const [isHuntlySite, setIsHuntlySite] = useState(false);
 
     // Tabs
     const [activeTab, setActiveTab] = useState(0);
@@ -143,6 +144,10 @@ const Popup = () => {
 
     function setSettingsState(settings: StorageSettings) {
       setStorageSettings(settings);
+      // Initialize parserType from user settings
+      if (settings.contentParser) {
+        setParserType(settings.contentParser);
+      }
       if (!settings.serverUrl) {
         // No server enabled - still load page info for parsing, but skip server-related operations
         setLoadingUser(false);
@@ -162,7 +167,7 @@ const Popup = () => {
       }
     }
 
-    function loadPageInfoOnly(customParserType?: ContentParserType) {
+    function loadPageInfoOnly(customParserType?: ContentParserType, keepPageOnFail?: boolean) {
       setParsingArticle(true);
       setParseFailed(false);
       chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
@@ -174,25 +179,37 @@ const Popup = () => {
           }, function (response) {
             setParsingArticle(false);
             if(response) {
-              setPage(response.page);
-              if (response.parserType) {
-                setParserType(response.parserType);
-              }
-              if (!response.page) {
+              setIsHuntlySite(response.isHuntlySite === true);
+              if (response.page) {
+                setPage(response.page);
+                if (response.parserType) {
+                  setParserType(response.parserType);
+                }
+              } else {
+                // Only clear page if not keeping on fail (initial load vs parser switch)
+                if (!keepPageOnFail) {
+                  setPage(null);
+                }
                 setParseFailed(true);
               }
             } else {
+              if (!keepPageOnFail) {
+                setPage(null);
+              }
               setParseFailed(true);
             }
           });
         } else {
           setParsingArticle(false);
+          if (!keepPageOnFail) {
+            setPage(null);
+          }
           setParseFailed(true);
         }
       });
     }
 
-    function loadPageInfo(customParserType?: ContentParserType) {
+    function loadPageInfo(customParserType?: ContentParserType, keepPageOnFail?: boolean) {
       setParsingArticle(true);
       setParseFailed(false);
       chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
@@ -204,21 +221,32 @@ const Popup = () => {
           }, function (response) {
             setParsingArticle(false);
             if(response) {
-              setPage(response.page);
-              if (response.parserType) {
-                setParserType(response.parserType);
-              }
+              setIsHuntlySite(response.isHuntlySite === true);
               if (response.page) {
+                setPage(response.page);
+                if (response.parserType) {
+                  setParserType(response.parserType);
+                }
                 loadPageOperateResult(autoSavedPageId, response.page.url, setArticleOperateResult);
               } else {
+                // Only clear page if not keeping on fail (initial load vs parser switch)
+                if (!keepPageOnFail) {
+                  setPage(null);
+                }
                 setParseFailed(true);
               }
             } else {
+              if (!keepPageOnFail) {
+                setPage(null);
+              }
               setParseFailed(true);
             }
           });
         } else {
           setParsingArticle(false);
+          if (!keepPageOnFail) {
+            setPage(null);
+          }
           setParseFailed(true);
         }
       });
@@ -580,7 +608,8 @@ const Popup = () => {
                           parserType={parserType}
                           onParserChange={(newParser) => {
                             setParserType(newParser);
-                            username ? loadPageInfo(newParser) : loadPageInfoOnly(newParser);
+                            // Don't keep page on fail when page is already null
+                            username ? loadPageInfo(newParser, false) : loadPageInfoOnly(newParser, false);
                           }}
                         />
                       </div>
@@ -614,7 +643,7 @@ const Popup = () => {
                         </div>
                       }
                       {
-                        storageSettings?.serverUrl && activeTab === 0 && autoSavedPageId > 0 && <div className={'mb-2'}>
+                        storageSettings?.serverUrl && !isHuntlySite && activeTab === 0 && autoSavedPageId > 0 && <div className={'mb-2'}>
                           <Alert severity={'success'}>This webpage has been automatically hunted.
                             <a href={combineUrl(storageSettings.serverUrl, "/page/" + autoSavedPageId)} target={'_blank'}
                                className={'ml-1'}>view</a>
@@ -622,7 +651,7 @@ const Popup = () => {
                         </div>
                       }
                       {
-                        storageSettings?.serverUrl && !autoSavedPageId && activeOperateResult && activeOperateResult.id > 0 && <div className={'mb-2'}>
+                        storageSettings?.serverUrl && !isHuntlySite && !autoSavedPageId && activeOperateResult && activeOperateResult.id > 0 && <div className={'mb-2'}>
                           <Alert severity={'info'}>
                             {activeTab === 0 ? 'This webpage has been hunted.' : 'This snippet has been saved.'}
                             <a href={combineUrl(storageSettings.serverUrl, "/page/" + activeOperateResult.id)} target={'_blank'}
@@ -633,8 +662,8 @@ const Popup = () => {
                       <div>
                         <div className={'flex items-center'}>
                           <TextField value={activePage.url} size={"small"} fullWidth={true} disabled={true}/>
-                          {/* Only show action buttons when server is configured */}
-                          {storageSettings?.serverUrl && <div className={'grow shrink-0 pl-2'}>
+                          {/* Only show action buttons when server is configured and not on Huntly site */}
+                          {storageSettings?.serverUrl && !isHuntlySite && <div className={'grow shrink-0 pl-2'}>
                             {
                               activeOperateResult?.readLater ? (
                                 <Tooltip title={"Remove from read later"}>
