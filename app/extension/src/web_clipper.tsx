@@ -39,8 +39,11 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
     return;
   } else if (msg.type === 'shortcuts_preview') {
     let page = msg.payload?.page;
+    // Use parserType from message if provided, otherwise use cached setting
+    const parserType = msg.payload?.parserType || cachedParserType;
+    log('[Huntly] shortcuts_preview - received parserType:', msg.payload?.parserType, 'using:', parserType);
     if (!page) {
-      const webClipper = new WebClipper(cachedParserType);
+      const webClipper = new WebClipper(parserType);
       page = webClipper.parseDoc(document.cloneNode(true) as Document);
     }
     const rootId = "huntly_preview_unique_root";
@@ -50,44 +53,44 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
       elRoot.id = rootId;
       document.body.append(elRoot);
     }
-    if (elRoot.dataset.preview !== "1") {
-      elRoot.dataset.preview = "1";
-      previewRootEl = elRoot;
 
-      // Save original scroll state - don't modify it, just track for cleanup
-      const originalBodyOverflow = document.body.style.overflow;
-      const originalHtmlOverflow = document.documentElement.style.overflow;
+    // Save original scroll state - don't modify it, just track for cleanup
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
 
-      // Close handler to clean up the preview
-      const handleClose = () => {
-        if (previewRootEl) {
-          delete previewRootEl.dataset.preview;
-        }
-        if (root) {
-          root.unmount();
-          root = null;
-        }
-        // Restore original scroll state
-        document.body.style.overflow = originalBodyOverflow;
-        document.documentElement.style.overflow = originalHtmlOverflow;
-      };
-
+    // Close handler to clean up the preview
+    const handleClose = () => {
+      if (previewRootEl) {
+        delete previewRootEl.dataset.preview;
+      }
       if (root) {
         root.unmount();
+        root = null;
       }
-      root = createRoot(elRoot);
-      root.render(
-        <ShadowDomPreview
-          page={page}
-          initialParserType={cachedParserType}
-          onClose={handleClose}
-          externalShortcuts={msg.payload?.externalShortcuts}
-          externalModels={msg.payload?.externalModels}
-          autoExecuteShortcut={msg.payload?.autoExecuteShortcut}
-          autoSelectedModel={msg.payload?.autoSelectedModel}
-        />
-      );
+      // Restore original scroll state
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+
+    // Always re-render (unmount first if already mounted)
+    if (root) {
+      root.unmount();
     }
+
+    elRoot.dataset.preview = "1";
+    previewRootEl = elRoot;
+    root = createRoot(elRoot);
+    root.render(
+      <ShadowDomPreview
+        page={page}
+        initialParserType={parserType}
+        onClose={handleClose}
+        externalShortcuts={msg.payload?.externalShortcuts}
+        externalModels={msg.payload?.externalModels}
+        autoExecuteShortcut={msg.payload?.autoExecuteShortcut}
+        autoSelectedModel={msg.payload?.autoSelectedModel}
+      />
+    );
     return;
   } else if (msg.type === "get_selection") {
     const webClipper = new WebClipper();

@@ -143,9 +143,6 @@ export const getShadowDomStyles = (): string => `
   display: flex;
   align-items: center;
   gap: 8px;
-  padding: 4px 12px;
-  background: #f5f5f5;
-  border-radius: 6px;
 }
 
 .huntly-parser-label {
@@ -156,23 +153,29 @@ export const getShadowDomStyles = (): string => `
 }
 
 .huntly-parser-select {
-  padding: 4px 8px;
+  padding: 5px 24px 5px 10px;
   font-size: 12px;
   border: 1px solid #e0e0e0;
-  border-radius: 4px;
-  background: white;
+  border-radius: 6px;
+  background: #fafafa url("data:image/svg+xml,%3Csvg xmlns='http://www.w3.org/2000/svg' width='10' height='10' viewBox='0 0 24 24' fill='none' stroke='%23666' stroke-width='2' stroke-linecap='round' stroke-linejoin='round'%3E%3Cpolyline points='6 9 12 15 18 9'%3E%3C/polyline%3E%3C/svg%3E") no-repeat right 8px center;
   cursor: pointer;
   outline: none;
   min-width: 100px;
+  color: #333;
+  transition: border-color 0.2s, background-color 0.2s;
+  -webkit-appearance: none;
+  -moz-appearance: none;
+  appearance: none;
 }
 
 .huntly-parser-select:hover {
-  border-color: #1976d2;
+  border-color: #bbb;
+  background-color: #f5f5f5;
 }
 
 .huntly-parser-select:focus {
   border-color: #1976d2;
-  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.2);
+  box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
 }
 
 /* Close button */
@@ -223,7 +226,7 @@ export const getShadowDomStyles = (): string => `
 }
 
 .huntly-markdown-body h1 {
-  margin: .67em 0;
+  margin: 0 0 .67em 0;
   font-weight: 600;
   padding-bottom: .3em;
   font-size: 2em;

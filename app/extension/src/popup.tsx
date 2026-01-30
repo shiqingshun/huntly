@@ -29,7 +29,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import StarIcon from '@mui/icons-material/Star';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
-import VisibilityIcon from '@mui/icons-material/Visibility';
+import MenuBookTwoToneIcon from '@mui/icons-material/MenuBookTwoTone';
 import {log} from "./logger";
 import {
   archivePage,
@@ -45,6 +45,31 @@ import {LibrarySaveStatus} from "./model/librarySaveStatus";
 import {PageOperateResult} from "./model/pageOperateResult";
 import {detectRssFeed, RssSubscription} from "./rss";
 import AIToolbar, { ShortcutItem, ModelItem, AIGradientDef } from "./components/AIToolbar";
+
+// Parser selector component - only shows the alternative parser option
+const ParserSelector = ({ parserType, onParserChange }: {
+  parserType: ContentParserType;
+  onParserChange: (parser: ContentParserType) => void;
+}) => {
+  const alternativeParser = parserType === 'readability' ? 'defuddle' : 'readability';
+  const alternativeLabel = alternativeParser === 'readability' ? 'Readability' : 'Defuddle';
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+        Try another parser:
+      </Typography>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={() => onParserChange(alternativeParser)}
+        sx={{ minWidth: 'auto', px: 1, py: 0.25, fontSize: '0.75rem' }}
+      >
+        {alternativeLabel}
+      </Button>
+    </Box>
+  );
+};
 
 const Popup = () => {
     const [storageSettings, setStorageSettings] = useState<StorageSettings>(null);
@@ -408,10 +433,12 @@ const Popup = () => {
         });
       });
 
+      log('[Huntly] articlePreview - parserType:', parserType);
       chrome.tabs.sendMessage(tab.id, {
         type: 'shortcuts_preview',
         payload: {
           page: activePage,
+          parserType: parserType,
           externalShortcuts: aiToolbarData.success ? aiToolbarData.externalShortcuts : undefined,
           externalModels: aiToolbarData.success ? aiToolbarData.externalModels : undefined,
         }
@@ -448,6 +475,7 @@ const Popup = () => {
         type: 'shortcuts_preview',
         payload: {
           page: activePage,
+          parserType: parserType,
           externalShortcuts: aiToolbarData.success ? aiToolbarData.externalShortcuts : undefined,
           externalModels: aiToolbarData.success ? aiToolbarData.externalModels : undefined,
           autoExecuteShortcut: shortcut,
@@ -548,33 +576,13 @@ const Popup = () => {
                         <Alert severity={'warning'} sx={{ mb: 2 }}>
                           This webpage doesn't look like an article page.
                         </Alert>
-                        <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
-                          <Typography variant="body2" color="text.secondary">
-                            Try another parser:
-                          </Typography>
-                          <Box sx={{ display: 'flex', gap: 1 }}>
-                            <Button
-                              size="small"
-                              variant={parserType === 'readability' ? 'contained' : 'outlined'}
-                              onClick={() => {
-                                setParserType('readability');
-                                username ? loadPageInfo('readability') : loadPageInfoOnly('readability');
-                              }}
-                            >
-                              Readability
-                            </Button>
-                            <Button
-                              size="small"
-                              variant={parserType === 'defuddle' ? 'contained' : 'outlined'}
-                              onClick={() => {
-                                setParserType('defuddle');
-                                username ? loadPageInfo('defuddle') : loadPageInfoOnly('defuddle');
-                              }}
-                            >
-                              Defuddle
-                            </Button>
-                          </Box>
-                        </Box>
+                        <ParserSelector
+                          parserType={parserType}
+                          onParserChange={(newParser) => {
+                            setParserType(newParser);
+                            username ? loadPageInfo(newParser) : loadPageInfoOnly(newParser);
+                          }}
+                        />
                       </div>
                     }
                   </div>
@@ -598,20 +606,6 @@ const Popup = () => {
                   {/* Shared Content View (Article or Snippet) */}
                   {
                     ((activeTab === 0 && page) || (activeTab === 1 && snippetPage)) && <div>
-                      {/* No server configured - show info message */}
-                      {
-                        !storageSettings?.serverUrl && <div className={'mb-2'}>
-                          <Alert severity={'info'}>
-                            No server configured. You can preview articles, but saving is disabled.
-                            <span
-                              className={'ml-1 text-sky-600 cursor-pointer hover:underline'}
-                              onClick={openOptionsPage}
-                            >
-                              Configure server &gt;
-                            </span>
-                          </Alert>
-                        </div>
-                      }
                       {
                         activeTab === 1 && isRestoredSnippet && <div className={'mb-2'}>
                           <Alert severity={'info'}>
@@ -728,7 +722,7 @@ const Popup = () => {
                               </Typography>
                             </CardContent>
                             <Box sx={{ px: 1.5, pb: 1, display: 'flex', justifyContent: 'flex-end', borderLeft: '1px solid #ccc' }}>
-                              <Button variant={"text"} color={"info"} size={"small"} startIcon={<VisibilityIcon/>}
+                              <Button variant={"text"} color={"info"} size={"small"} startIcon={<MenuBookTwoToneIcon/>}
                                       onClick={articlePreview}>Reading Mode</Button>
                             </Box>
                           </div>}
@@ -750,7 +744,7 @@ const Popup = () => {
                                 </Typography>
                             </CardContent>
                             <Box sx={{ px: 1.5, pb: 1, display: 'flex', justifyContent: 'flex-end' }}>
-                              <Button variant={"text"} color={"info"} size={"small"} startIcon={<VisibilityIcon/>}
+                              <Button variant={"text"} color={"info"} size={"small"} startIcon={<MenuBookTwoToneIcon/>}
                                       onClick={articlePreview}>Reading Mode</Button>
                             </Box>
                           </div>}

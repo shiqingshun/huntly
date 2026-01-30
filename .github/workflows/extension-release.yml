@@ -2,7 +2,7 @@ name: huntly extension release workflow
 
 on:
   push:
-    tags: [ 'ext/v[0-9]+.[0-9]+.[0-9]+*' ]
+    tags: [ 'ext/v*.*.*' ]
 
 permissions:
   contents: read

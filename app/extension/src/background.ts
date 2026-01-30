@@ -1,5 +1,5 @@
 import {log} from "./logger";
-import {readSyncStorageSettings, getPromptsSettings} from "./storage";
+import {readSyncStorageSettings, getPromptsSettings, getLanguageNativeName} from "./storage";
 import {autoSaveArticle, saveArticle, sendData, fetchEnabledShortcuts, getApiBaseUrl} from "./services";
 import {sseRequestManager} from "./sseTaskManager";
 import {
@@ -12,6 +12,20 @@ import { createProviderModel } from "./ai/providers";
 import { streamText } from "ai";
 // Note: turndown is not used here because service worker has no DOM
 // HTML to markdown conversion should be done in content script/popup before sending to background
+
+// Store AbortControllers for Vercel AI tasks
+const vercelAIAbortControllers = new Map<string, AbortController>();
+
+// Cancel a Vercel AI task
+function cancelVercelAITask(taskId: string): boolean {
+  const controller = vercelAIAbortControllers.get(taskId);
+  if (controller) {
+    controller.abort();
+    vercelAIAbortControllers.delete(taskId);
+    return true;
+  }
+  return false;
+}
 
 function startProcessingWithShortcuts(task: any, shortcuts: any[]) {
   if (!task) return;
@@ -133,6 +147,10 @@ async function startProcessingWithVercelAI(task: any) {
 
   const { tabId, taskId, shortcutName, shortcutContent, content, title, selectedModel } = task;
 
+  // Create AbortController for this task
+  const abortController = new AbortController();
+  vercelAIAbortControllers.set(taskId, abortController);
+
   // Send processing start message
   chrome.tabs.sendMessage(tabId, {
     type: 'shortcuts_processing_start',
@@ -164,26 +182,33 @@ async function startProcessingWithVercelAI(task: any) {
 
     // Get default target language for {lang} replacement
     const promptsSettings = await getPromptsSettings();
-    const defaultTargetLanguage = promptsSettings.defaultTargetLanguage || 'Chinese';
+    const defaultTargetLanguage = promptsSettings.defaultTargetLanguage || 'English';
 
-    // Build the prompt: replace {lang} placeholder with target language
-    const systemPrompt = (shortcutContent || '').replace(/\{lang\}/g, defaultTargetLanguage);
+    // Build the prompt: replace {lang} placeholder with native language name
+    const nativeLanguageName = getLanguageNativeName(defaultTargetLanguage);
+    const systemPrompt = (shortcutContent || '').replace(/\{lang\}/g, nativeLanguageName);
 
     // Prepare user prompt: content is already markdown (converted in ArticlePreview), add title prefix
     const userPrompt = prepareMarkdownContent(content, title);
 
     let accumulatedContent = "";
 
-    // Use streamText for streaming response
+    // Use streamText for streaming response with abort signal
     const result = await streamText({
       model,
       system: systemPrompt,
       prompt: userPrompt,
       maxTokens: 8000,
+      abortSignal: abortController.signal,
     });
 
     // Process the stream
     for await (const textPart of result.textStream) {
+      // Check if aborted
+      if (abortController.signal.aborted) {
+        break;
+      }
+
       accumulatedContent += textPart;
 
       // Send streaming data to preview
@@ -203,21 +228,35 @@ async function startProcessingWithVercelAI(task: any) {
       }
     }
 
-    // Send completion message
-    try {
-      chrome.tabs.sendMessage(tabId, {
-        type: 'shortcuts_process_result',
-        payload: {
-          content: accumulatedContent,
-          title: shortcutName,
-          taskId: taskId
-        }
-      });
-    } catch (error) {
-      console.warn("Failed to send shortcuts_process_result message:", error);
+    // Clean up AbortController
+    vercelAIAbortControllers.delete(taskId);
+
+    // Only send completion if not aborted
+    if (!abortController.signal.aborted) {
+      try {
+        chrome.tabs.sendMessage(tabId, {
+          type: 'shortcuts_process_result',
+          payload: {
+            content: accumulatedContent,
+            title: shortcutName,
+            taskId: taskId
+          }
+        });
+      } catch (error) {
+        console.warn("Failed to send shortcuts_process_result message:", error);
+      }
     }
 
   } catch (error: any) {
+    // Clean up AbortController
+    vercelAIAbortControllers.delete(taskId);
+
+    // Don't report error if it was aborted
+    if (abortController.signal.aborted) {
+      log("Task was cancelled:", taskId);
+      return;
+    }
+
     console.error("Error processing with Vercel AI SDK for task:", taskId, error);
 
     try {
@@ -284,7 +323,10 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
   } else if (msg.type === 'shortcuts_cancel') {
     // 根据 taskId 取消处理任务
     const taskId = msg.payload.taskId;
-    if (sseRequestManager.cancelTask(taskId)) {
+    // Try to cancel SSE task (Huntly server) or Vercel AI task
+    const sseCancelled = sseRequestManager.cancelTask(taskId);
+    const vercelCancelled = cancelVercelAITask(taskId);
+    if (sseCancelled || vercelCancelled) {
       log("Processing cancelled for task:", taskId);
     }
   } else if (msg.type === 'get_huntly_shortcuts') {
@@ -309,6 +351,13 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
         sendResponse({ success: false, error: error.message });
       });
     return true; // Keep the message channel open for async response
+  } else if ((msg as any).type === 'open_tab') {
+    // Open a new tab (for content script context where chrome.tabs.create is not available)
+    const openTabMsg = msg as Message & { url?: string };
+    const url = openTabMsg.url || openTabMsg.payload?.url;
+    if (url) {
+      chrome.tabs.create({ url });
+    }
   }
 });
 

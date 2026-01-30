@@ -83,7 +83,7 @@ export const XSetting: React.FC = () => {
           border: '1px solid',
           borderColor: alpha('#3b82f6', 0.1),
         }}>
-          <Box sx={{ display: 'flex', alignItems: 'flex-start', gap: 2 }}>
+          <Box sx={{ display: 'flex', flexDirection: { xs: 'column', sm: 'row' }, alignItems: { xs: 'stretch', sm: 'flex-start' }, gap: 2 }}>
             <TextField
               type="number"
               size="small"
@@ -93,12 +93,11 @@ export const XSetting: React.FC = () => {
               onBlur={handleMinLikesSave}
               inputProps={{ min: 0, max: 100000 }}
               disabled={minLikesLoading}
-              sx={{ width: 180 }}
+              sx={{ width: { xs: '100%', sm: 180 } }}
             />
             <Alert severity="info" sx={{ flex: 1, py: 0.5 }}>
               <Typography variant="body2">
-                Only save tweets with at least this many likes. Set to 0 to save all tweets.
-                This filter applies globally and does not affect user-specific rules.
+                Set to 0 to save all tweets. This global filter doesn't affect user rules.
               </Typography>
             </Alert>
           </Box>

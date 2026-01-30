@@ -8,13 +8,17 @@ import {
   CircularProgress,
   Typography,
   Box,
+  IconButton,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SettingsIcon from '@mui/icons-material/Settings';
 import KeyboardArrowDownIcon from '@mui/icons-material/KeyboardArrowDown';
+import StopRoundedIcon from '@mui/icons-material/StopRounded';
 import {
   Prompt,
   getPromptsSettings,
+  saveSelectedModelId,
+  getSelectedModelId,
 } from '../storage';
 import { fetchEnabledShortcuts, getApiBaseUrl } from '../services';
 import {
@@ -61,6 +65,8 @@ export interface AIToolbarProps {
   isProcessing?: boolean;
   showPreview?: boolean;
   onPreviewClick?: () => void;
+  /** Called when user clicks the stop button during processing */
+  onStopClick?: () => void;
   compact?: boolean;
   /** Container element for Menu portals (used in Shadow DOM) */
   menuContainer?: HTMLElement | (() => HTMLElement);
@@ -86,6 +92,7 @@ export const AIGradientDef = () => (
 export const AIToolbar: React.FC<AIToolbarProps> = ({
   onShortcutClick,
   isProcessing = false,
+  onStopClick,
   compact = false,
   menuContainer,
   externalShortcuts,
@@ -116,9 +123,27 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
     externalModels?.models || []
   );
   const [selectedModel, setSelectedModel] = useState<ModelItem | null>(
-    initialSelectedModel || externalModels?.defaultModel || null
+    initialSelectedModel || null
   );
   const [loadingModels, setLoadingModels] = useState(!useExternalModels);
+
+  // Restore saved model when using external models (and no initialSelectedModel provided)
+  useEffect(() => {
+    if (useExternalModels && externalModels && !initialSelectedModel) {
+      // Try to restore previously saved model
+      getSelectedModelId().then((savedModelId) => {
+        let model: ModelItem | null = null;
+        if (savedModelId) {
+          model = externalModels.models.find(m => m.id === savedModelId) || null;
+        }
+        // Fall back to default model if saved one not found
+        if (!model) {
+          model = externalModels.defaultModel;
+        }
+        setSelectedModel(model);
+      });
+    }
+  }, [useExternalModels, externalModels, initialSelectedModel]);
 
   // Sync selectedModel when initialSelectedModel is provided (for auto-execute from popup)
   useEffect(() => {
@@ -236,13 +261,25 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
 
         // Set default selected model
         if (modelList.length > 0) {
-          const defaultProviderType = await getEffectiveDefaultProviderType();
-          if (defaultProviderType) {
-            const defaultModel = modelList.find(m => m.provider === defaultProviderType);
-            setSelectedModel(defaultModel || modelList[0]);
-          } else {
-            setSelectedModel(modelList[0]);
+          // Try to restore previously selected model
+          const savedModelId = await getSelectedModelId();
+          let selectedModel: ModelItem | null = null;
+
+          if (savedModelId) {
+            selectedModel = modelList.find(m => m.id === savedModelId) || null;
           }
+
+          // Fall back to default provider or first model
+          if (!selectedModel) {
+            const defaultProviderType = await getEffectiveDefaultProviderType();
+            if (defaultProviderType) {
+              selectedModel = modelList.find(m => m.provider === defaultProviderType) || modelList[0];
+            } else {
+              selectedModel = modelList[0];
+            }
+          }
+
+          setSelectedModel(selectedModel);
         }
       } catch (error) {
         console.error('Failed to load models:', error);
@@ -276,13 +313,21 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
 
   const handleModelSelect = (model: ModelItem) => {
     setSelectedModel(model);
+    // Save selection for next time
+    saveSelectedModelId(model.id);
     handleModelMenuClose();
   };
 
   const openSettings = (tab?: string) => {
     const optionsUrl = chrome.runtime.getURL('options.html');
     const url = tab ? `${optionsUrl}#${tab}` : optionsUrl;
-    chrome.tabs.create({ url });
+    // chrome.tabs.create is not available in content scripts, use message passing
+    if (chrome.tabs?.create) {
+      chrome.tabs.create({ url });
+    } else {
+      // Fallback for content script context - send message to background
+      chrome.runtime.sendMessage({ type: 'open_tab', url });
+    }
     handleShortcutMenuClose();
     handleModelMenuClose();
   };
@@ -327,17 +372,18 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
         variant="outlined"
         onClick={handleModelMenuOpen}
         endIcon={<KeyboardArrowDownIcon />}
-        disabled={loadingModels}
+        disabled={loadingModels || isProcessing}
         sx={{
           textTransform: 'none',
           minWidth: compact ? 100 : 120,
+          maxWidth: compact ? 160 : 220,
           justifyContent: 'space-between',
         }}
       >
         {loadingModels ? (
           <CircularProgress size={14} />
         ) : selectedModel ? (
-          <Typography variant="body2" noWrap sx={{ maxWidth: compact ? 80 : 100 }}>
+          <Typography variant="body2" noWrap>
             {selectedModel.name}
           </Typography>
         ) : (
@@ -350,6 +396,7 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
         open={modelMenuOpen}
         onClose={handleModelMenuClose}
         container={menuContainer}
+        disableScrollLock
         sx={{ zIndex: menuZIndex }}
         PaperProps={{ sx: { maxHeight: 400, minWidth: 180, zIndex: menuZIndex } }}
       >
@@ -406,11 +453,53 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
         AI Shortcuts
       </Button>
 
+      {/* Stop Button - Circular with pulse animation */}
+      {isProcessing && onStopClick && (
+        <Box
+          onClick={onStopClick}
+          sx={{
+            display: 'flex',
+            alignItems: 'center',
+            justifyContent: 'center',
+            width: 30,
+            height: 30,
+            borderRadius: '50%',
+            border: '1.5px solid',
+            borderColor: 'divider',
+            bgcolor: 'background.paper',
+            cursor: 'pointer',
+            transition: 'all 0.15s ease',
+            '&:hover': {
+              bgcolor: 'action.hover',
+              borderColor: 'text.secondary',
+            },
+            '@keyframes pulse': {
+              '0%, 100%': {
+                opacity: 1,
+              },
+              '50%': {
+                opacity: 0.5,
+              },
+            },
+          }}
+          title="Stop generating"
+        >
+          <StopRoundedIcon
+            sx={{
+              fontSize: 20,
+              color: 'text.primary',
+              animation: 'pulse 1.5s ease-in-out infinite',
+            }}
+          />
+        </Box>
+      )}
+
       <Menu
         anchorEl={shortcutAnchorEl}
         open={shortcutMenuOpen}
         onClose={handleShortcutMenuClose}
         container={menuContainer}
+        disableScrollLock
         sx={{ zIndex: menuZIndex }}
         PaperProps={{ sx: { maxHeight: 400, minWidth: 200, zIndex: menuZIndex } }}
       >
@@ -459,6 +548,7 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
                 {userPrompts.map(prompt => (
                   <MenuItem
                     key={`user-${prompt.id}`}
+                    disabled={!selectedModel}
                     onClick={() => handleShortcutSelect({
                       id: prompt.id,
                       name: prompt.name,
@@ -479,6 +569,7 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
                 {systemPrompts.map(prompt => (
                   <MenuItem
                     key={`system-${prompt.id}`}
+                    disabled={!selectedModel}
                     onClick={() => handleShortcutSelect({
                       id: prompt.id,
                       name: prompt.name,

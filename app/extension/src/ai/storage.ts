@@ -10,7 +10,7 @@ import { getApiBaseUrl } from '../services';
 const AI_PROVIDERS_STORAGE_KEY = 'aiProviders';
 
 export async function getAIProvidersStorage(): Promise<AIProvidersStorage> {
-  const result = await chrome.storage.local.get(AI_PROVIDERS_STORAGE_KEY);
+  const result = await chrome.storage.sync.get(AI_PROVIDERS_STORAGE_KEY);
   const stored = result[AI_PROVIDERS_STORAGE_KEY];
   if (!stored) {
     return DEFAULT_AI_STORAGE;
@@ -28,7 +28,7 @@ export async function getAIProvidersStorage(): Promise<AIProvidersStorage> {
 export async function saveAIProvidersStorage(
   storage: AIProvidersStorage
 ): Promise<void> {
-  await chrome.storage.local.set({ [AI_PROVIDERS_STORAGE_KEY]: storage });
+  await chrome.storage.sync.set({ [AI_PROVIDERS_STORAGE_KEY]: storage });
 }
 
 export async function getProviderConfig(

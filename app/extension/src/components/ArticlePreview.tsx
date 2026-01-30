@@ -164,6 +164,17 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
     });
   }, [isProcessing, currentTaskId, page, isSnippetMode]);
 
+  // Handle stop button click
+  const handleStopClick = useCallback(() => {
+    if (currentTaskId) {
+      chrome.runtime.sendMessage({
+        type: "shortcuts_cancel",
+        payload: { taskId: currentTaskId },
+      });
+      setIsProcessing(false);
+    }
+  }, [currentTaskId]);
+
   // Message listener for processing events
   useEffect(() => {
     const messageListener = (msg: any) => {
@@ -232,6 +243,7 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
             <AIToolbar
               onShortcutClick={handleShortcutClick}
               isProcessing={isProcessing}
+              onStopClick={handleStopClick}
               compact={false}
               menuContainer={shadowContainer || undefined}
               externalShortcuts={externalShortcuts}

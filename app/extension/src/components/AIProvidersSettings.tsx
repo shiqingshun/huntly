@@ -113,9 +113,7 @@ export const AIProvidersSettings: React.FC = () => {
       <div className="section-header">
         <h2 className="section-title">AI Service Providers</h2>
         <p className="section-description">
-          Configure AI providers to enable AI-powered features in Huntly
-          extension. API keys are stored locally and never sent to Huntly
-          servers.
+          API keys are stored locally and never sent to Huntly servers.
         </p>
       </div>
 
@@ -129,7 +127,8 @@ export const AIProvidersSettings: React.FC = () => {
         {visibleProviders.map((type) => {
           const meta = PROVIDER_REGISTRY[type];
           const config = providers[type];
-          const isConfigured = config?.enabled;
+          const hasConfig = config !== null;
+          const isEnabled = config?.enabled ?? false;
 
           return (
             <Paper
@@ -140,7 +139,7 @@ export const AIProvidersSettings: React.FC = () => {
                 display: 'flex',
                 flexDirection: 'column',
                 gap: 1.5,
-                borderColor: isConfigured ? 'primary.main' : 'divider',
+                borderColor: isEnabled ? 'primary.main' : 'divider',
                 position: 'relative',
                 transition: 'border-color 0.2s',
                 '&:hover': {
@@ -148,13 +147,13 @@ export const AIProvidersSettings: React.FC = () => {
                 },
               }}
             >
-              {isConfigured && (
+              {hasConfig && (
                 <CheckCircleIcon
                   sx={{
                     position: 'absolute',
                     top: 8,
                     right: 8,
-                    color: 'success.main',
+                    color: isEnabled ? 'success.main' : 'action.disabled',
                     fontSize: 20,
                   }}
                 />
@@ -200,11 +199,11 @@ export const AIProvidersSettings: React.FC = () => {
                   alignItems: 'center',
                 }}
               >
-                {isConfigured && config ? (
+                {hasConfig && config ? (
                   <Chip
                     label={`${config.enabledModels.length} model${config.enabledModels.length > 1 ? 's' : ''}`}
                     size="small"
-                    color="primary"
+                    color={isEnabled ? 'primary' : 'default'}
                     variant="outlined"
                   />
                 ) : (
@@ -212,10 +211,10 @@ export const AIProvidersSettings: React.FC = () => {
                 )}
                 <Button
                   size="small"
-                  variant={isConfigured ? 'outlined' : 'contained'}
+                  variant={hasConfig ? 'outlined' : 'contained'}
                   onClick={() => handleOpenDialog(type)}
                 >
-                  {isConfigured ? 'Edit' : 'Setup'}
+                  {hasConfig ? 'Edit' : 'Setup'}
                 </Button>
               </Box>
             </Paper>

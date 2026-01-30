@@ -1,5 +1,6 @@
 import React, { useEffect, useState } from 'react';
 import {
+  Alert,
   Box,
   Button,
   TextField,
@@ -15,13 +16,11 @@ import {
   ListItemSecondaryAction,
   Paper,
   Divider,
-  FormControl,
-  InputLabel,
-  Select,
-  MenuItem,
   Snackbar,
   Chip,
   Switch,
+  Autocomplete,
+  Tooltip,
 } from '@mui/material';
 import AddIcon from '@mui/icons-material/Add';
 import EditIcon from '@mui/icons-material/Edit';
@@ -32,21 +31,11 @@ import {
   Prompt,
   getPromptsSettings,
   savePromptsSettings,
+  LANGUAGES,
+  LanguageOption,
+  getBrowserLanguage,
+  findLanguageByEnglish,
 } from '../storage';
-
-const COMMON_LANGUAGES = [
-  'Chinese',
-  'English',
-  'Japanese',
-  'Korean',
-  'Spanish',
-  'French',
-  'German',
-  'Russian',
-  'Portuguese',
-  'Italian',
-  'Arabic',
-];
 
 interface PromptDialogProps {
   open: boolean;
@@ -140,7 +129,7 @@ const PromptDialog: React.FC<PromptDialogProps> = ({
           rows={8}
           value={content}
           onChange={(e) => setContent(e.target.value)}
-          helperText="Use {lang} as a placeholder for the target language"
+          helperText="Use {lang} as a placeholder for the output language"
         />
       </DialogContent>
       <DialogActions>
@@ -158,7 +147,8 @@ const PromptDialog: React.FC<PromptDialogProps> = ({
 };
 
 export const PromptsSettings: React.FC = () => {
-  const [defaultTargetLanguage, setDefaultTargetLanguage] = useState('Chinese');
+  const [defaultTargetLanguage, setDefaultTargetLanguage] = useState('');
+  const [savedLanguage, setSavedLanguage] = useState('');  // Track last saved language
   const [prompts, setPrompts] = useState<Prompt[]>([]);
   const [dialogOpen, setDialogOpen] = useState(false);
   const [editingPrompt, setEditingPrompt] = useState<Prompt | null>(null);
@@ -166,11 +156,16 @@ export const PromptsSettings: React.FC = () => {
   const [viewingPrompt, setViewingPrompt] = useState<Prompt | null>(null);
   const [snackbarOpen, setSnackbarOpen] = useState(false);
   const [snackbarMessage, setSnackbarMessage] = useState('');
+  const [isInitialized, setIsInitialized] = useState(false);
 
   const loadSettings = async () => {
     const settings = await getPromptsSettings();
-    setDefaultTargetLanguage(settings.defaultTargetLanguage);
+    // Use browser language as default if not set or empty
+    const language = settings.defaultTargetLanguage || getBrowserLanguage();
+    setDefaultTargetLanguage(language);
+    setSavedLanguage(language);
     setPrompts(settings.prompts);
+    setIsInitialized(true);
   };
 
   useEffect(() => {
@@ -191,9 +186,17 @@ export const PromptsSettings: React.FC = () => {
     setSnackbarOpen(true);
   };
 
-  const handleDefaultLanguageChange = async (language: string) => {
+  const handleDefaultLanguageChange = async (language: string, force = false) => {
+    if (!language) return;
+    // Skip if language hasn't changed from last saved value (unless forced)
+    if (!force && language === savedLanguage) return;
+
     setDefaultTargetLanguage(language);
+    setSavedLanguage(language);
     await saveSettings(language, prompts);
+    // Reload settings to get localized system prompts
+    const settings = await getPromptsSettings();
+    setPrompts(settings.prompts);
   };
 
   const handlePromptToggle = async (promptId: string, enabled: boolean) => {
@@ -266,32 +269,63 @@ export const PromptsSettings: React.FC = () => {
     <div className="settings-section">
       <div className="section-header">
         <h2 className="section-title">Prompts</h2>
-        <p className="section-description">
-          Configure prompts for AI processing. Use{' '}
-          <code style={{ background: '#f1f5f9', padding: '2px 6px', borderRadius: 4 }}>
-            {'{lang}'}
-          </code>{' '}
-          in prompt content as a placeholder for the target language.
-        </p>
+        <p className="section-description">Configure prompts for AI processing.</p>
       </div>
 
-      {/* Default Target Language */}
+      {/* Default Output Language */}
       <Box sx={{ mt: 3 }}>
-        <FormControl fullWidth size="small">
-          <InputLabel id="default-language-label">Default Target Language</InputLabel>
-          <Select
-            labelId="default-language-label"
-            value={defaultTargetLanguage}
-            label="Default Target Language"
-            onChange={(e) => handleDefaultLanguageChange(e.target.value)}
-          >
-            {COMMON_LANGUAGES.map((lang) => (
-              <MenuItem key={lang} value={lang}>
-                {lang}
-              </MenuItem>
-            ))}
-          </Select>
-        </FormControl>
+        <Autocomplete
+          freeSolo
+          options={LANGUAGES}
+          getOptionLabel={(option) => {
+            if (typeof option === 'string') return option;
+            return option.english;
+          }}
+          value={findLanguageByEnglish(defaultTargetLanguage) || null}
+          inputValue={defaultTargetLanguage}
+          onInputChange={(_, newValue) => {
+            if (newValue !== defaultTargetLanguage) {
+              setDefaultTargetLanguage(newValue);
+            }
+          }}
+          onChange={(_, newValue) => {
+            if (newValue) {
+              const language = typeof newValue === 'string' ? newValue : newValue.english;
+              handleDefaultLanguageChange(language);
+            }
+          }}
+          onBlur={() => {
+            // Save on blur for manual input (compare with last saved value)
+            if (defaultTargetLanguage && isInitialized && defaultTargetLanguage !== savedLanguage) {
+              handleDefaultLanguageChange(defaultTargetLanguage, true);
+            }
+          }}
+          renderOption={(props, option) => (
+            <Box
+              component="li"
+              {...props}
+              key={option.code}
+              sx={{ display: 'flex', flexDirection: 'column', alignItems: 'flex-start !important', py: 1 }}
+            >
+              <Typography variant="body1" sx={{ fontWeight: 500 }}>
+                {option.english}
+              </Typography>
+              <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+                {option.native}
+              </Typography>
+            </Box>
+          )}
+          renderInput={(params) => (
+            <TextField
+              {...params}
+              label="Output Language"
+              size="small"
+              placeholder="Type or select a language"
+              helperText="The language for AI-generated content output"
+            />
+          )}
+          sx={{ width: '100%' }}
+        />
       </Box>
 
       {/* User Prompts */}
@@ -344,23 +378,39 @@ export const PromptsSettings: React.FC = () => {
                       size="small"
                       sx={{ mr: 1 }}
                     />
-                    <ListItemText
-                      primary={prompt.name}
-                      secondary={
-                        <Typography
-                          variant="body2"
-                          color="text.secondary"
-                          sx={{
-                            overflow: 'hidden',
-                            textOverflow: 'ellipsis',
-                            whiteSpace: 'nowrap',
-                            maxWidth: '400px',
-                          }}
-                        >
+                    <Tooltip
+                      title={
+                        <Typography sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
                           {prompt.content}
                         </Typography>
                       }
-                    />
+                      placement="top-start"
+                      arrow
+                      enterDelay={500}
+                      slotProps={{
+                        tooltip: {
+                          sx: { maxWidth: 500, p: 1.5 }
+                        }
+                      }}
+                    >
+                      <ListItemText
+                        primary={prompt.name}
+                        secondary={
+                          <Typography
+                            variant="body2"
+                            color="text.secondary"
+                            sx={{
+                              overflow: 'hidden',
+                              textOverflow: 'ellipsis',
+                              whiteSpace: 'nowrap',
+                              maxWidth: '450px',
+                            }}
+                          >
+                            {prompt.content}
+                          </Typography>
+                        }
+                      />
+                    </Tooltip>
                     <ListItemSecondaryAction>
                       <IconButton
                         edge="end"
@@ -413,23 +463,39 @@ export const PromptsSettings: React.FC = () => {
                     size="small"
                     sx={{ mr: 1 }}
                   />
-                  <ListItemText
-                    primary={prompt.name}
-                    secondary={
-                      <Typography
-                        variant="body2"
-                        color="text.secondary"
-                        sx={{
-                          overflow: 'hidden',
-                          textOverflow: 'ellipsis',
-                          whiteSpace: 'nowrap',
-                          maxWidth: '400px',
-                        }}
-                      >
+                  <Tooltip
+                    title={
+                      <Typography sx={{ whiteSpace: 'pre-wrap', fontSize: '0.8rem' }}>
                         {prompt.content}
                       </Typography>
                     }
-                  />
+                    placement="top-start"
+                    arrow
+                    enterDelay={500}
+                    slotProps={{
+                      tooltip: {
+                        sx: { maxWidth: 500, p: 1.5 }
+                      }
+                    }}
+                  >
+                    <ListItemText
+                      primary={prompt.name}
+                      secondary={
+                        <Typography
+                          variant="body2"
+                          color="text.secondary"
+                          sx={{
+                            overflow: 'hidden',
+                            textOverflow: 'ellipsis',
+                            whiteSpace: 'nowrap',
+                            maxWidth: '450px',
+                          }}
+                        >
+                          {prompt.content}
+                        </Typography>
+                      }
+                    />
+                  </Tooltip>
                   <ListItemSecondaryAction>
                     <IconButton
                       edge="end"
@@ -470,9 +536,12 @@ export const PromptsSettings: React.FC = () => {
         open={snackbarOpen}
         autoHideDuration={2000}
         onClose={() => setSnackbarOpen(false)}
-        message={snackbarMessage}
         anchorOrigin={{ vertical: 'bottom', horizontal: 'center' }}
-      />
+      >
+        <Alert severity="success" onClose={() => setSnackbarOpen(false)}>
+          {snackbarMessage}
+        </Alert>
+      </Snackbar>
     </div>
   );
 };

@@ -8,6 +8,7 @@ import {
   DialogActions,
   DialogContent,
   DialogTitle,
+  FormControlLabel,
   IconButton,
   InputAdornment,
   List,
@@ -54,6 +55,7 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
   const [apiKey, setApiKey] = useState('');
   const [baseUrl, setBaseUrl] = useState('');
   const [showApiKey, setShowApiKey] = useState(false);
+  const [providerEnabled, setProviderEnabled] = useState(true);
   const [enabledModels, setEnabledModels] = useState<string[]>([]);
   const [availableModels, setAvailableModels] = useState<ModelInfo[]>(
     meta.defaultModels
@@ -84,10 +86,13 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
     const defaultPresetModels = meta.defaultModels;
     const presetIds = new Set(defaultPresetModels.map((m) => m.id));
 
+    let configBaseUrl = '';
     if (config) {
       setApiKey(config.apiKey);
       // Only set baseUrl if it was explicitly saved (not the default)
-      setBaseUrl(config.baseUrl || '');
+      configBaseUrl = config.baseUrl || '';
+      setBaseUrl(configBaseUrl);
+      setProviderEnabled(config.enabled);
       // Separate custom models from preset models
       const custom = config.enabledModels.filter((id) => !presetIds.has(id));
       const preset = config.enabledModels.filter((id) => presetIds.has(id));
@@ -97,6 +102,7 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
       setApiKey('');
       // Use empty string - show default as placeholder instead
       setBaseUrl('');
+      setProviderEnabled(true);
       // Select the first preset model by default
       setEnabledModels(defaultPresetModels.slice(0, 1).map((m) => m.id));
       setCustomModels([]);
@@ -106,14 +112,17 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
     setTestResult(null);
 
     if (providerType === 'ollama') {
-      refreshOllamaModels();
+      // Pass the URL directly to avoid stale state issue
+      refreshOllamaModels(configBaseUrl);
     }
   };
 
-  const refreshOllamaModels = async () => {
+  const refreshOllamaModels = async (urlOverride?: string) => {
     setLoadingModels(true);
     try {
-      const models = await fetchOllamaModels(baseUrl || undefined);
+      // Use urlOverride if provided, otherwise fall back to current state
+      const url = urlOverride !== undefined ? urlOverride : baseUrl;
+      const models = await fetchOllamaModels(url || undefined);
       if (models.length > 0) {
         setAvailableModels(models.map((id) => ({ id, name: id })));
       }
@@ -155,7 +164,7 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
         apiKey,
         baseUrl: baseUrl || undefined,
         enabledModels: allModels,
-        enabled: true,
+        enabled: providerEnabled,
         updatedAt: Date.now(),
       };
       await saveProviderConfig(providerType, config);
@@ -166,8 +175,10 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
   };
 
   const handleDelete = async () => {
-    await deleteProviderConfig(providerType);
-    onClose();
+    if (window.confirm(`Are you sure you want to remove ${meta.displayName} configuration?`)) {
+      await deleteProviderConfig(providerType);
+      onClose();
+    }
   };
 
   const toggleModel = (modelId: string) => {
@@ -255,8 +266,13 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
   };
 
   const allSelectedCount = enabledModels.length + customModels.length;
+  // Azure providers require baseUrl to be set
+  const isAzureProvider = providerType === 'azure-openai' || providerType === 'azure-ai';
+  const hasRequiredBaseUrl = !isAzureProvider || baseUrl.trim() !== '';
   const canSave =
-    (providerType === 'ollama' || apiKey.trim() !== '') && allSelectedCount > 0;
+    (providerType === 'ollama' || apiKey.trim() !== '') &&
+    allSelectedCount > 0 &&
+    hasRequiredBaseUrl;
 
   const getApiUrlHelperText = (type: ProviderType): string => {
     if (type === 'ollama') {
@@ -336,7 +352,7 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
             {providerType === 'ollama' && (
               <Button
                 variant="outlined"
-                onClick={refreshOllamaModels}
+                onClick={() => refreshOllamaModels()}
                 disabled={loadingModels}
                 startIcon={
                   loadingModels ? (
@@ -493,8 +509,25 @@ export const AIProviderDialog: React.FC<AIProviderDialogProps> = ({
         <Button color="error" onClick={handleDelete}>
           Remove
         </Button>
-        <Box sx={{ display: 'flex', gap: 1 }}>
-          <Button onClick={onClose}>Cancel</Button>
+        <Box sx={{ display: 'flex', gap: 1, alignItems: 'center' }}>
+          <FormControlLabel
+            control={
+              <Switch
+                checked={providerEnabled}
+                onChange={(e) => setProviderEnabled(e.target.checked)}
+                size="small"
+              />
+            }
+            label="Enable"
+            labelPlacement="start"
+            sx={{
+              mr: 1,
+              '& .MuiFormControlLabel-label': {
+                color: 'text.secondary',
+                fontSize: '0.875rem',
+              },
+            }}
+          />
           <Button
             variant="contained"
             onClick={handleSave}
