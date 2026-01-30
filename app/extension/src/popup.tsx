@@ -1,7 +1,6 @@
 import React, {useEffect, useState} from "react";
 import { createRoot } from 'react-dom/client';
 import './popup.css';
-import EnergySavingsLeafIcon from "@mui/icons-material/EnergySavingsLeaf";
 import SettingsOutlinedIcon from '@mui/icons-material/SettingsOutlined';
 import {
   Alert,
@@ -11,12 +10,12 @@ import {
   CardContent,
   CardMedia,
   CircularProgress, CssBaseline, Dialog, DialogActions, DialogTitle,
-  IconButton, Menu, MenuItem, StyledEngineProvider,
+  IconButton, StyledEngineProvider,
   Tabs, Tab,
   TextField,
   Tooltip, Typography
 } from "@mui/material";
-import {readSyncStorageSettings, StorageSettings} from "./storage";
+import {readSyncStorageSettings, StorageSettings, ContentParserType} from "./storage";
 import {combineUrl} from "./utils";
 import PersonPinIcon from '@mui/icons-material/PersonPin';
 import ArticleIcon from '@mui/icons-material/Article';
@@ -30,8 +29,7 @@ import DeleteForeverIcon from '@mui/icons-material/DeleteForever';
 import StarIcon from '@mui/icons-material/Star';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
-import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
-import ContentCutIcon from '@mui/icons-material/ContentCut';
+import MenuBookTwoToneIcon from '@mui/icons-material/MenuBookTwoTone';
 import {log} from "./logger";
 import {
   archivePage,
@@ -42,21 +40,50 @@ import {
   saveArticle, savePageToLibrary, starPage,
   unReadLaterPage,
   unStarPage,
-  fetchEnabledShortcuts
 } from "./services";
 import {LibrarySaveStatus} from "./model/librarySaveStatus";
 import {PageOperateResult} from "./model/pageOperateResult";
-import {Settings} from "./settings";
 import {detectRssFeed, RssSubscription} from "./rss";
+import AIToolbar, { ShortcutItem, ModelItem, AIGradientDef } from "./components/AIToolbar";
+
+// Parser selector component - only shows the alternative parser option
+const ParserSelector = ({ parserType, onParserChange }: {
+  parserType: ContentParserType;
+  onParserChange: (parser: ContentParserType) => void;
+}) => {
+  const alternativeParser = parserType === 'readability' ? 'defuddle' : 'readability';
+  const alternativeLabel = alternativeParser === 'readability' ? 'Readability' : 'Defuddle';
+
+  return (
+    <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
+      <Typography variant="body2" color="text.secondary" sx={{ fontSize: '0.8rem' }}>
+        Try another parser:
+      </Typography>
+      <Button
+        size="small"
+        variant="outlined"
+        onClick={() => onParserChange(alternativeParser)}
+        sx={{ minWidth: 'auto', px: 1, py: 0.25, fontSize: '0.75rem' }}
+      >
+        {alternativeLabel}
+      </Button>
+    </Box>
+  );
+};
 
 const Popup = () => {
     const [storageSettings, setStorageSettings] = useState<StorageSettings>(null);
-    const [showOptions, setShowOptions] = useState(false);
     const [username, setUsername] = useState<string>(null);
     const [loadingUser, setLoadingUser] = useState(true);
     const [page, setPage] = useState<PageModel>(null);
     const [autoSavedPageId, setAutoSavedPageId] = useState<number>(0);
     const [articleOperateResult, setArticleOperateResult] = useState<PageOperateResult>(null);
+
+    // Parser state
+    const [parserType, setParserType] = useState<ContentParserType>("readability");
+    const [parsingArticle, setParsingArticle] = useState(false);
+    const [parseFailed, setParseFailed] = useState(false);
+    const [isHuntlySite, setIsHuntlySite] = useState(false);
 
     // Tabs
     const [activeTab, setActiveTab] = useState(0);
@@ -70,12 +97,8 @@ const Popup = () => {
     const activeOperateResult = activeTab === 0 ? articleOperateResult : snippetOperateResult;
     const setActiveOperateResult = activeTab === 0 ? setArticleOperateResult : setSnippetOperateResult;
 
-    // 快捷指令相关状态
-    const [shortcuts, setShortcuts] = useState<any[]>([]);
-    const [loadingShortcuts, setLoadingShortcuts] = useState(false);
+    // AI processing state
     const [processingShortcut, setProcessingShortcut] = useState(false);
-    const [shortcutMenuAnchorEl, setShortcutMenuAnchorEl] = useState<null | HTMLElement>(null);
-    const shortcutMenuOpen = Boolean(shortcutMenuAnchorEl);
 
     // RSS Feed Detection
     const [isRssFeed, setIsRssFeed] = useState(false);
@@ -121,8 +144,14 @@ const Popup = () => {
 
     function setSettingsState(settings: StorageSettings) {
       setStorageSettings(settings);
+      // Initialize parserType from user settings
+      if (settings.contentParser) {
+        setParserType(settings.contentParser);
+      }
       if (!settings.serverUrl) {
-        setShowOptions(true);
+        // No server enabled - still load page info for parsing, but skip server-related operations
+        setLoadingUser(false);
+        loadPageInfoOnly();
       } else {
         setLoadingUser(true);
         getLoginUserInfo().then((data) => {
@@ -130,8 +159,6 @@ const Popup = () => {
           setUsername(result.username);
 
           loadPageInfo();
-          // 加载快捷指令
-          fetchShortcuts();
         }).catch(() => {
           setUsername(null);
         }).finally(() => {
@@ -140,16 +167,87 @@ const Popup = () => {
       }
     }
 
-    function loadPageInfo() {
+    function loadPageInfoOnly(customParserType?: ContentParserType, keepPageOnFail?: boolean) {
+      setParsingArticle(true);
+      setParseFailed(false);
       chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
         const tab = tabs[0];
         if (tab) {
-          chrome.tabs.sendMessage(tab.id, {type: 'parse_doc'}, function (response) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'parse_doc',
+            payload: { parserType: customParserType }
+          }, function (response) {
+            setParsingArticle(false);
             if(response) {
-              setPage(response.page);
-              loadPageOperateResult(autoSavedPageId, response.page.url, setArticleOperateResult);
+              setIsHuntlySite(response.isHuntlySite === true);
+              if (response.page) {
+                setPage(response.page);
+                if (response.parserType) {
+                  setParserType(response.parserType);
+                }
+              } else {
+                // Only clear page if not keeping on fail (initial load vs parser switch)
+                if (!keepPageOnFail) {
+                  setPage(null);
+                }
+                setParseFailed(true);
+              }
+            } else {
+              if (!keepPageOnFail) {
+                setPage(null);
+              }
+              setParseFailed(true);
             }
           });
+        } else {
+          setParsingArticle(false);
+          if (!keepPageOnFail) {
+            setPage(null);
+          }
+          setParseFailed(true);
+        }
+      });
+    }
+
+    function loadPageInfo(customParserType?: ContentParserType, keepPageOnFail?: boolean) {
+      setParsingArticle(true);
+      setParseFailed(false);
+      chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
+        const tab = tabs[0];
+        if (tab) {
+          chrome.tabs.sendMessage(tab.id, {
+            type: 'parse_doc',
+            payload: { parserType: customParserType }
+          }, function (response) {
+            setParsingArticle(false);
+            if(response) {
+              setIsHuntlySite(response.isHuntlySite === true);
+              if (response.page) {
+                setPage(response.page);
+                if (response.parserType) {
+                  setParserType(response.parserType);
+                }
+                loadPageOperateResult(autoSavedPageId, response.page.url, setArticleOperateResult);
+              } else {
+                // Only clear page if not keeping on fail (initial load vs parser switch)
+                if (!keepPageOnFail) {
+                  setPage(null);
+                }
+                setParseFailed(true);
+              }
+            } else {
+              if (!keepPageOnFail) {
+                setPage(null);
+              }
+              setParseFailed(true);
+            }
+          });
+        } else {
+          setParsingArticle(false);
+          if (!keepPageOnFail) {
+            setPage(null);
+          }
+          setParseFailed(true);
         }
       });
     }
@@ -198,18 +296,13 @@ const Popup = () => {
       });
     }
 
-    function toggleShowOptions() {
-      setShowOptions(!showOptions);
+    function openOptionsPage() {
+      chrome.runtime.openOptionsPage();
     }
 
     function getDomain(serverUrl: string) {
       const url = new URL(serverUrl);
       return url.hostname;
-    }
-
-    function handleOptionsChange(settings: StorageSettings) {
-      setShowOptions(false);
-      setSettingsState(settings);
     }
 
     function openSignIn() {
@@ -351,107 +444,83 @@ const Popup = () => {
       </div>;
     }
 
-    function articlePreview() {
-      chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
-        const tab = tabs[0];
-        if (tab) {
-          chrome.tabs.sendMessage(tab.id, {
-            type: 'shortcuts_preview',
-            payload: {
-              shortcuts: shortcuts,
-              page: activePage
-            }
-          }, function (response) {
-          });
+    async function articlePreview() {
+      const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+      const tab = tabs[0];
+      if (!tab) return;
 
-          // 关闭 popup 窗口
-          window.close();
-        }
-      });
-    }
-
-    // 获取可用的快捷指令
-    async function fetchShortcuts() {
-      try {
-        setLoadingShortcuts(true);
-        const data = await fetchEnabledShortcuts();
-        setShortcuts(data);
-      } catch (error) {
-        console.error("Error fetching shortcuts:", error);
-      } finally {
-        setLoadingShortcuts(false);
-      }
-    }
-
-    // 处理快捷指令菜单打开
-    const handleShortcutMenuOpen = (event: React.MouseEvent<HTMLButtonElement>) => {
-      setShortcutMenuAnchorEl(event.currentTarget);
-    };
-    
-    // 处理快捷指令菜单关闭
-    const handleShortcutMenuClose = () => {
-      setShortcutMenuAnchorEl(null);
-    };
-    
-    // 处理快捷指令点击
-    const handleShortcutClick = async (shortcutId: number, shortcutName: string) => {
-      if (!activePage || processingShortcut) return;
-      
-      setProcessingShortcut(true);
-      handleShortcutMenuClose();
-      
-      try {
-        // 获取当前活动标签页
-        chrome.tabs.query({active: true, currentWindow: true}, function (tabs) {
-          const tab = tabs[0];
-          if (tab) {
-            // 生成唯一的 taskId
-            const taskId = `popup_${Date.now()}_${Math.random().toString(36).substring(7)}`;
-            
-            // Snippet 模式下使用 snippet 的内容和 description（纯文本）
-            const isSnippetMode = activeTab === 1;
-            const contentToProcess = isSnippetMode 
-              ? (activePage.description || activePage.content) // Snippet 使用 description（选中的纯文本）
-              : activePage.content;
-            
-            // 发送消息到 background 脚本处理快捷指令
-            chrome.runtime.sendMessage({
-              type: 'shortcuts_process',
-              payload: {
-                tabId: tab.id,
-                taskId,
-                shortcutId,
-                shortcutName,
-                content: contentToProcess,
-                url: activePage.url,
-                title: isSnippetMode ? '' : activePage.title,
-                contentType: isSnippetMode ? 4 : undefined, // 4 = SNIPPET
-                shortcuts: shortcuts
-              }
-            });
-            
-            // 关闭 popup 窗口
-            window.close();
+      // Get AI toolbar data from background script for content script use
+      const aiToolbarData = await new Promise<any>((resolve) => {
+        chrome.runtime.sendMessage({ type: 'get_ai_toolbar_data' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Failed to get AI toolbar data:', chrome.runtime.lastError);
+            resolve({ success: false });
+          } else {
+            resolve(response || { success: false });
           }
         });
-      } catch (error) {
-        console.error("Error processing with shortcut:", error);
-        setProcessingShortcut(false);
-      }
+      });
+
+      log('[Huntly] articlePreview - parserType:', parserType);
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'shortcuts_preview',
+        payload: {
+          page: activePage,
+          parserType: parserType,
+          externalShortcuts: aiToolbarData.success ? aiToolbarData.externalShortcuts : undefined,
+          externalModels: aiToolbarData.success ? aiToolbarData.externalModels : undefined,
+        }
+      });
+
+      // Close popup window
+      window.close();
+    }
+
+    // Handle AI shortcut click from AIToolbar
+    const handleAIShortcutClick = async (shortcut: ShortcutItem, selectedModel: ModelItem | null) => {
+      if (!activePage || processingShortcut) return;
+
+      setProcessingShortcut(true);
+
+      const tabs = await chrome.tabs.query({active: true, currentWindow: true});
+      const tab = tabs[0];
+      if (!tab) return;
+
+      // Get AI toolbar data from background script for content script use
+      const aiToolbarData = await new Promise<any>((resolve) => {
+        chrome.runtime.sendMessage({ type: 'get_ai_toolbar_data' }, (response) => {
+          if (chrome.runtime.lastError) {
+            console.error('Failed to get AI toolbar data:', chrome.runtime.lastError);
+            resolve({ success: false });
+          } else {
+            resolve(response || { success: false });
+          }
+        });
+      });
+
+      // Open preview with auto-execute shortcut
+      chrome.tabs.sendMessage(tab.id, {
+        type: 'shortcuts_preview',
+        payload: {
+          page: activePage,
+          parserType: parserType,
+          externalShortcuts: aiToolbarData.success ? aiToolbarData.externalShortcuts : undefined,
+          externalModels: aiToolbarData.success ? aiToolbarData.externalModels : undefined,
+          autoExecuteShortcut: shortcut,
+          autoSelectedModel: selectedModel,
+        }
+      });
+
+      // Close popup window
+      window.close();
     };
 
     return (
       <div style={{minWidth: "600px", minHeight: '200px'}} className={'mb-4'}>
-        <svg width={0} height={0} style={{ position: 'absolute', visibility: 'hidden' }}>
-          <linearGradient id="geminiGradient" x1="0%" y1="0%" x2="100%" y2="100%">
-            <stop offset="0%" stopColor="#4facfe" />
-            <stop offset="50%" stopColor="#a18cd1" />
-            <stop offset="100%" stopColor="#fbc2eb" />
-          </linearGradient>
-        </svg>
+        <AIGradientDef />
         <div className={'commonPadding header'}>
           <div className="flex items-center text-sky-600 font-bold">
-            <EnergySavingsLeafIcon className="h-4 w-4 mr-1"/>
+            <img src="/favicon-16x16.png" alt="Huntly" className="h-4 w-4 mr-1" />
             Huntly
             {
               storageSettings && storageSettings.serverUrl && <div>
@@ -468,7 +537,7 @@ const Popup = () => {
                 </IconButton>
               </Tooltip>
             }
-            <IconButton onClick={toggleShowOptions}>
+            <IconButton onClick={openOptionsPage}>
               <SettingsOutlinedIcon className={'text-sky-600'}/>
             </IconButton>
           </div>
@@ -476,24 +545,15 @@ const Popup = () => {
 
         <div className={'commonPadding'}>
           {
-            !storageSettings || !storageSettings.serverUrl && <div className={'mb-2'}>
-              <Alert severity={'info'}>Please set the huntly server url first.</Alert>
-            </div>
-          }
-          {
-            showOptions && <div className={'flex justify-center'}>
-              <Settings onOptionsChange={handleOptionsChange}></Settings>
-            </div>
-          }
-          {
-            !showOptions && <div>
+            <div>
               {
                 loadingUser && <div className={'flex justify-center items-center h-[120px]'}>
                   <CircularProgress/>
                 </div>
               }
+              {/* Server configured but not signed in */}
               {
-                !loadingUser && !username && <div>
+                !loadingUser && storageSettings?.serverUrl && !username && <div>
                   <div className={'mt-5'}>
                     <Alert severity={'info'}>Please sign in to start.</Alert>
                   </div>
@@ -502,8 +562,9 @@ const Popup = () => {
                   </div>
                 </div>
               }
+              {/* Server configured and signed in, or no server configured (read-only mode) */}
               {
-                !loadingUser && username && <div>
+                !loadingUser && (username || !storageSettings?.serverUrl) && <div>
                   {/* RSS Feed Subscription Interface */}
                   {checkingRssFeed && (
                     <div className={'flex justify-center items-center h-[120px]'}>
@@ -534,10 +595,23 @@ const Popup = () => {
                   {/* Article Tab Content */}
                   <div role="tabpanel" hidden={activeTab !== 0}>
                     {
-                      !page && <div>
-                        <Alert severity={'warning'}>
+                      parsingArticle && <div className={'flex justify-center items-center h-[120px]'}>
+                        <CircularProgress/>
+                      </div>
+                    }
+                    {
+                      !parsingArticle && !page && <div>
+                        <Alert severity={'warning'} sx={{ mb: 2 }}>
                           This webpage doesn't look like an article page.
                         </Alert>
+                        <ParserSelector
+                          parserType={parserType}
+                          onParserChange={(newParser) => {
+                            setParserType(newParser);
+                            // Don't keep page on fail when page is already null
+                            username ? loadPageInfo(newParser, false) : loadPageInfoOnly(newParser, false);
+                          }}
+                        />
                       </div>
                     }
                   </div>
@@ -569,7 +643,7 @@ const Popup = () => {
                         </div>
                       }
                       {
-                        activeTab === 0 && autoSavedPageId > 0 && <div className={'mb-2'}>
+                        storageSettings?.serverUrl && !isHuntlySite && activeTab === 0 && autoSavedPageId > 0 && <div className={'mb-2'}>
                           <Alert severity={'success'}>This webpage has been automatically hunted.
                             <a href={combineUrl(storageSettings.serverUrl, "/page/" + autoSavedPageId)} target={'_blank'}
                                className={'ml-1'}>view</a>
@@ -577,7 +651,7 @@ const Popup = () => {
                         </div>
                       }
                       {
-                        !autoSavedPageId && activeOperateResult && activeOperateResult.id > 0 && <div className={'mb-2'}>
+                        storageSettings?.serverUrl && !isHuntlySite && !autoSavedPageId && activeOperateResult && activeOperateResult.id > 0 && <div className={'mb-2'}>
                           <Alert severity={'info'}>
                             {activeTab === 0 ? 'This webpage has been hunted.' : 'This snippet has been saved.'}
                             <a href={combineUrl(storageSettings.serverUrl, "/page/" + activeOperateResult.id)} target={'_blank'}
@@ -588,7 +662,8 @@ const Popup = () => {
                       <div>
                         <div className={'flex items-center'}>
                           <TextField value={activePage.url} size={"small"} fullWidth={true} disabled={true}/>
-                          <div className={'grow shrink-0 pl-2'}>
+                          {/* Only show action buttons when server is configured and not on Huntly site */}
+                          {storageSettings?.serverUrl && !isHuntlySite && <div className={'grow shrink-0 pl-2'}>
                             {
                               activeOperateResult?.readLater ? (
                                 <Tooltip title={"Remove from read later"}>
@@ -636,7 +711,7 @@ const Popup = () => {
                                 )
                               )
                             }
-                          </div>
+                          </div>}
                         </div>
                         <Card className={`mainBorder mt-2 w-full flex`}>
                           {
@@ -661,29 +736,34 @@ const Popup = () => {
                               />
                             </div>
                           }
-                          
+
                           {/* Article Card Content */}
-                          {activeTab === 0 && <div className={'flex items-center'}>
-                            <CardContent sx={{borderLeft: '1px solid #ccc'}}>
+                          {activeTab === 0 && <div className={'flex flex-col flex-1'}>
+                            <CardContent sx={{borderLeft: '1px solid #ccc', flex: 1}}>
                               <Typography variant="body2" color="text.secondary">
                                 {activePage.domain}
                               </Typography>
-                              <Typography variant="body1" component="div" className={`line-clamp-3`}>
+                              <Typography variant="body1" component="div" className={`line-clamp-2`}>
                                 {activePage.title}
                               </Typography>
-                              <Typography variant="body2" color="text.secondary" className={`line-clamp-3`}>
+                              <Typography variant="body2" color="text.secondary" className={`line-clamp-2`}>
                                 {activePage.description}
                               </Typography>
                             </CardContent>
+                            <Box sx={{ px: 1.5, pb: 1, display: 'flex', justifyContent: 'flex-end', borderLeft: '1px solid #ccc' }}>
+                              <Button variant={"text"} color={"info"} size={"small"} startIcon={<MenuBookTwoToneIcon/>}
+                                      onClick={articlePreview}>Reading Mode</Button>
+                            </Box>
                           </div>}
 
                           {/* Snippet Card Content */}
-                          {activeTab === 1 && <div className={'w-full'}>
+                          {activeTab === 1 && <div className={'w-full flex flex-col'}>
                             <CardContent sx={{
-                                maxHeight: '200px',
+                                maxHeight: '160px',
                                 overflowY: 'auto',
                                 padding: '10px !important',
-                                '& p': { margin: '0 0 10px 0' }
+                                '& p': { margin: '0 0 10px 0' },
+                                flex: 1
                             }}>
                                 <Typography variant="caption" sx={{ color: 'text.disabled', fontSize: '0.75rem' }} gutterBottom>
                                     {activePage.title}
@@ -692,43 +772,19 @@ const Popup = () => {
                                     {activePage.description}
                                 </Typography>
                             </CardContent>
+                            <Box sx={{ px: 1.5, pb: 1, display: 'flex', justifyContent: 'flex-end' }}>
+                              <Button variant={"text"} color={"info"} size={"small"} startIcon={<MenuBookTwoToneIcon/>}
+                                      onClick={articlePreview}>Reading Mode</Button>
+                            </Box>
                           </div>}
                         </Card>
-                        
-                        <div className={'mt-2 flex justify-center gap-2'}>
-                          <Button variant={"text"} color={"info"} size={"small"} startIcon={<ArticleIcon/>}
-                                  onClick={articlePreview}>Preview</Button>
-                          
-                          {shortcuts && shortcuts.length > 0 && (
-                            <>
-                              <Button 
-                                variant={"text"} 
-                                color={"primary"} 
-                                size={"small"} 
-                                startIcon={<AutoAwesomeIcon sx={{ fill: "url(#geminiGradient)" }} />}
-                                endIcon={processingShortcut ? <CircularProgress size={14} /> : null}
-                                onClick={handleShortcutMenuOpen}
-                                disabled={processingShortcut}
-                              >
-                                AI Shortcuts
-                              </Button>
-                              <Menu
-                                anchorEl={shortcutMenuAnchorEl}
-                                open={shortcutMenuOpen}
-                                onClose={handleShortcutMenuClose}
-                              >
-                                {shortcuts.map(shortcut => (
-                                  <MenuItem 
-                                    key={shortcut.id} 
-                                    onClick={() => handleShortcutClick(shortcut.id, shortcut.name)}
-                                    disabled={processingShortcut}
-                                  >
-                                    {shortcut.name}
-                                  </MenuItem>
-                                ))}
-                              </Menu>
-                            </>
-                          )}
+
+                        <div className={'mt-2 flex justify-center'}>
+                          <AIToolbar
+                            onShortcutClick={handleAIShortcutClick}
+                            isProcessing={processingShortcut}
+                            compact={true}
+                          />
                         </div>
                       </div>
                     </div>
