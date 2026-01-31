@@ -1,7 +1,7 @@
 {
   "manifest_version": 3,
   "name": "Huntly",
-  "description": "Huntly - AI shortcuts (summarization, bilingual translation, key points extraction, etc.), auto-saves web pages and tweets, and provides immersive article preview.",
+  "description": "Huntly - AI shortcuts (summarization, bilingual translation, etc.), auto-saves web pages and tweets.",
   "version": "0.5.2",
   "options_ui": {
     "page": "options.html",
