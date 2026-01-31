@@ -81,20 +81,11 @@ jobs:
           CI: false
           EXTENSION_VERSION: ${{ needs.create-release.outputs.version }}
 
-      - name: Create extension bundle (Firefox)
-        run: |
-          cd app/extension
-          yarn build:firefox
-        env:
-          CI: false
-          EXTENSION_VERSION: ${{ needs.create-release.outputs.version }}
-
       - name: Package release files
         run: |
           mkdir -p release
           cd app/extension
           zip -r ../../release/huntly-chrome-extension-${{ needs.create-release.outputs.version }}.zip ./dist/*
-          zip -r ../../release/huntly-firefox-extension-${{ needs.create-release.outputs.version }}.zip ./dist-firefox/*
 
       - name: Upload Chrome extension to release
         uses: actions/upload-release-asset@v1
@@ -104,15 +95,5 @@ jobs:
           upload_url: ${{ needs.create-release.outputs.release_upload_url }}
           asset_path: release/huntly-chrome-extension-${{ needs.create-release.outputs.version }}.zip
           asset_name: huntly-chrome-extension-${{ needs.create-release.outputs.version }}.zip
-          asset_content_type: application/zip
-
-      - name: Upload Firefox extension to release
-        uses: actions/upload-release-asset@v1
-        env:
-          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}
-        with:
-          upload_url: ${{ needs.create-release.outputs.release_upload_url }}
-          asset_path: release/huntly-firefox-extension-${{ needs.create-release.outputs.version }}.zip
-          asset_name: huntly-firefox-extension-${{ needs.create-release.outputs.version }}.zip
           asset_content_type: application/zip
 

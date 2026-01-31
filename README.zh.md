@@ -149,5 +149,6 @@ sudo xattr -r -d com.apple.quarantine /YOUR_PATH/Huntly.app
     <td align="center"><a href="https://www.jetbrains.com/">jetbrains</a></td>
     <td align="center"><a href="https://taresky.com/">TARESKY</a></td>
     <td align="center"><a href="https://x.com/Db9el25LULCBrcn">抹茶</a></td>
+    <td align="center"><a href="https://github.com/jtsang4">jtsang4</a></td>
   </tr>
 </table>

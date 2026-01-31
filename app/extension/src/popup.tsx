@@ -75,6 +75,7 @@ const Popup = () => {
     const [storageSettings, setStorageSettings] = useState<StorageSettings>(null);
     const [username, setUsername] = useState<string>(null);
     const [loadingUser, setLoadingUser] = useState(true);
+    const [serverConnectionFailed, setServerConnectionFailed] = useState(false);
     const [page, setPage] = useState<PageModel>(null);
     const [autoSavedPageId, setAutoSavedPageId] = useState<number>(0);
     const [articleOperateResult, setArticleOperateResult] = useState<PageOperateResult>(null);
@@ -151,9 +152,11 @@ const Popup = () => {
       if (!settings.serverUrl) {
         // No server enabled - still load page info for parsing, but skip server-related operations
         setLoadingUser(false);
+        setServerConnectionFailed(false);
         loadPageInfoOnly();
       } else {
         setLoadingUser(true);
+        setServerConnectionFailed(false);
         getLoginUserInfo().then((data) => {
           const result = JSON.parse(data);
           setUsername(result.username);
@@ -161,6 +164,9 @@ const Popup = () => {
           loadPageInfo();
         }).catch(() => {
           setUsername(null);
+          // Server connection failed - still show article preview in read-only mode
+          setServerConnectionFailed(true);
+          loadPageInfoOnly();
         }).finally(() => {
           setLoadingUser(false);
         });
@@ -551,9 +557,9 @@ const Popup = () => {
                   <CircularProgress/>
                 </div>
               }
-              {/* Server configured but not signed in */}
+              {/* Server configured but not signed in and server is reachable */}
               {
-                !loadingUser && storageSettings?.serverUrl && !username && <div>
+                !loadingUser && storageSettings?.serverUrl && !username && !serverConnectionFailed && <div>
                   <div className={'mt-5'}>
                     <Alert severity={'info'}>Please sign in to start.</Alert>
                   </div>
@@ -562,9 +568,17 @@ const Popup = () => {
                   </div>
                 </div>
               }
-              {/* Server configured and signed in, or no server configured (read-only mode) */}
+              {/* Server configured and signed in, no server configured (read-only mode), or server connection failed */}
               {
-                !loadingUser && (username || !storageSettings?.serverUrl) && <div>
+                !loadingUser && (username || !storageSettings?.serverUrl || serverConnectionFailed) && <div>
+                  {/* Server connection failed warning */}
+                  {serverConnectionFailed && (
+                    <div className={'mb-2'}>
+                      <Alert severity={'warning'}>
+                        Cannot connect to Huntly server.
+                      </Alert>
+                    </div>
+                  )}
                   {/* RSS Feed Subscription Interface */}
                   {checkingRssFeed && (
                     <div className={'flex justify-center items-center h-[120px]'}>
@@ -662,8 +676,8 @@ const Popup = () => {
                       <div>
                         <div className={'flex items-center'}>
                           <TextField value={activePage.url} size={"small"} fullWidth={true} disabled={true}/>
-                          {/* Only show action buttons when server is configured and not on Huntly site */}
-                          {storageSettings?.serverUrl && !isHuntlySite && <div className={'grow shrink-0 pl-2'}>
+                          {/* Only show action buttons when server is configured, connected, and not on Huntly site */}
+                          {storageSettings?.serverUrl && !isHuntlySite && !serverConnectionFailed && <div className={'grow shrink-0 pl-2'}>
                             {
                               activeOperateResult?.readLater ? (
                                 <Tooltip title={"Remove from read later"}>
@@ -784,6 +798,7 @@ const Popup = () => {
                             onShortcutClick={handleAIShortcutClick}
                             isProcessing={processingShortcut}
                             compact={true}
+                            hideHuntlyAI={serverConnectionFailed}
                           />
                         </div>
                       </div>
