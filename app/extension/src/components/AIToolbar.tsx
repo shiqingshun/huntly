@@ -76,6 +76,8 @@ export interface AIToolbarProps {
   externalModels?: ExternalModelsData;
   /** Initial selected model (used when auto-executing from popup) */
   initialSelectedModel?: ModelItem | null;
+  /** Hide Huntly AI option (e.g., when server is not connected) */
+  hideHuntlyAI?: boolean;
 }
 
 // Gradient definition for AI icon
@@ -98,6 +100,7 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
   externalShortcuts,
   externalModels,
   initialSelectedModel,
+  hideHuntlyAI = false,
 }) => {
   // Determine if using external data
   const useExternalShortcuts = !!externalShortcuts;
@@ -151,6 +154,18 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
       setSelectedModel(initialSelectedModel);
     }
   }, [initialSelectedModel]);
+
+  // Switch away from Huntly AI if it's hidden
+  useEffect(() => {
+    if (hideHuntlyAI && selectedModel?.provider === 'huntly-server') {
+      const nonHuntlyModel = models.find(m => m.provider !== 'huntly-server');
+      if (nonHuntlyModel) {
+        setSelectedModel(nonHuntlyModel);
+      } else {
+        setSelectedModel(null);
+      }
+    }
+  }, [hideHuntlyAI, selectedModel, models]);
 
   // Menu state
   const [shortcutAnchorEl, setShortcutAnchorEl] = useState<null | HTMLElement>(null);
@@ -343,8 +358,8 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
     (showUserSystemPrompts && (userPrompts.length > 0 || systemPrompts.length > 0));
   const hasModels = models.length > 0;
 
-  // Group models by provider - only show Huntly AI when huntlyShortcutsEnabled is true
-  const huntlyModels = huntlyShortcutsEnabled
+  // Group models by provider - only show Huntly AI when huntlyShortcutsEnabled is true and not hidden
+  const huntlyModels = (huntlyShortcutsEnabled && !hideHuntlyAI)
     ? models.filter(m => m.provider === 'huntly-server')
     : [];
   const otherModels = models.filter(m => m.provider !== 'huntly-server');

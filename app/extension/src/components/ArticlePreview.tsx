@@ -178,6 +178,7 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
         title: isSnippetMode ? "" : page.title,
         contentType: isSnippetMode ? 4 : undefined,
         selectedModel: selectedModel,
+        skipPreview: true, // Preview is already open, skip shortcuts_preview message
       },
     });
   }, [isProcessing, currentTaskId, page, isSnippetMode]);

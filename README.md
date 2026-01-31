@@ -149,5 +149,6 @@ Thank you to all our sponsors for your generous support!
     <td align="center"><a href="https://www.jetbrains.com/">jetbrains</a></td>
     <td align="center"><a href="https://taresky.com/">TARESKY</a></td>
     <td align="center"><a href="https://x.com/Db9el25LULCBrcn">抹茶</a></td>
+    <td align="center"><a href="https://github.com/jtsang4">jtsang4</a></td>
   </tr>
 </table>

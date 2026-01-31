@@ -27,32 +27,11 @@ function cancelVercelAITask(taskId: string): boolean {
   return false;
 }
 
-function startProcessingWithShortcuts(task: any, shortcuts: any[]) {
+function startProcessingWithShortcuts(task: any, shortcuts: any[], skipPreview: boolean = false) {
   if (!task) return;
-  
-  chrome.tabs.sendMessage(task.tabId, {
-    type: 'shortcuts_preview',
-    payload: {
-      shortcuts: shortcuts,
-      taskId: task.taskId,
-      page: {
-          title: task.title,
-          content: task.content,
-          url: task.url,
-          description: "",
-          thumbUrl: "",
-          author: "",
-          siteName: "",
-          language: "",
-          category: "",
-          isLiked: false,
-          isFavorite: false,
-          domain: "",
-          faviconUrl: "",
-          contentType: task.contentType, // Pass contentType for snippet mode
-      }
-    }
-  }, function(response) {
+
+  // Function to start the actual processing
+  const startProcessing = () => {
     // 发送处理开始的消息
     chrome.tabs.sendMessage(task.tabId, {
       type: 'shortcuts_processing_start',
@@ -62,14 +41,14 @@ function startProcessingWithShortcuts(task: any, shortcuts: any[]) {
         taskId: task.taskId
       }
     });
-    
+
     let accumulatedContent = "";
-    
+
     // 使用新的 SSERequestManager 处理文章内容
     sseRequestManager.processContentWithShortcutStream(
       task.taskId,
       task.tabId,
-      task.content, 
+      task.content,
       task.shortcutId,
       task.shortcutName,
       task.url,
@@ -77,7 +56,7 @@ function startProcessingWithShortcuts(task: any, shortcuts: any[]) {
       // onData callback - 接收流式数据
       (data: string, taskId: string) => {
         accumulatedContent += data;
-        
+
         // 发送流式数据到预览页面
         try {
           chrome.tabs.sendMessage(task.tabId, {
@@ -114,7 +93,7 @@ function startProcessingWithShortcuts(task: any, shortcuts: any[]) {
       // onError callback - 处理错误
       (error: any, taskId: string) => {
         console.error("Error processing with shortcut for task:", taskId, error);
-        
+
         try {
           chrome.tabs.sendMessage(task.tabId, {
             type: 'shortcuts_process_error',
@@ -129,6 +108,39 @@ function startProcessingWithShortcuts(task: any, shortcuts: any[]) {
         }
       }
     );
+  };
+
+  // If preview is already open, skip sending shortcuts_preview message
+  if (skipPreview) {
+    startProcessing();
+    return;
+  }
+
+  // Send shortcuts_preview to open the preview window first
+  chrome.tabs.sendMessage(task.tabId, {
+    type: 'shortcuts_preview',
+    payload: {
+      shortcuts: shortcuts,
+      taskId: task.taskId,
+      page: {
+          title: task.title,
+          content: task.content,
+          url: task.url,
+          description: "",
+          thumbUrl: "",
+          author: "",
+          siteName: "",
+          language: "",
+          category: "",
+          isLiked: false,
+          isFavorite: false,
+          domain: "",
+          faviconUrl: "",
+          contentType: task.contentType, // Pass contentType for snippet mode
+      }
+    }
+  }, function(response) {
+    startProcessing();
   });
 }
 
@@ -304,7 +316,8 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
         contentType: msg.payload.contentType,
       };
       const shortcuts = msg.payload.shortcuts || [];
-      startProcessingWithShortcuts(task, shortcuts);
+      const skipPreview = msg.payload.skipPreview || false;
+      startProcessingWithShortcuts(task, shortcuts, skipPreview);
     } else {
       // Use Vercel AI SDK for other providers
       const task = {
