@@ -943,10 +943,10 @@
   resolved "https://registry.npmmirror.com/@mixmark-io/domino/-/domino-2.2.0.tgz#4e8ec69bf1afeb7a14f0628b7e2c0f35bdb336c3"
   integrity sha512-Y28PR25bHXUg88kCV7nivXrP2Nj2RueZ3/l/jdx6J9f8J4nsEGcgX0Qe6lt7Pa+J79+kPiJU3LguR6O/6zrLOw==
 
-"@mozilla/readability@^0.4.2":
-  version "0.4.3"
-  resolved "https://registry.npmjs.org/@mozilla/readability/-/readability-0.4.3.tgz"
-  integrity sha512-TQc/hBySDWT6GTtk5G3HU4TrnulRxmyZUWSBxXX+loYSoz028SUdRV+isy3axBkvm+vUot61Z9CPAqGrfpXp9Q==
+"@mozilla/readability@^0.6.0":
+  version "0.6.0"
+  resolved "https://registry.npmmirror.com/@mozilla/readability/-/readability-0.6.0.tgz#134e3ce3ff1676716e550de0b8de957bcc59208b"
+  integrity sha512-juG5VWh4qAivzTAeMzvY9xs9HY5rAcr2E4I7tiSSCokRFi7XIZCAu92ZkSTsIj1OPceCifL3cpfteP3pDT9/QQ==
 
 "@mui/base@5.0.0-alpha.122":
   version "5.0.0-alpha.122"
