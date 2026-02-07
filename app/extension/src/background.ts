@@ -1,6 +1,6 @@
 import {log} from "./logger";
 import {readSyncStorageSettings, getPromptsSettings, getLanguageNativeName} from "./storage";
-import {autoSaveArticle, saveArticle, sendData, fetchEnabledShortcuts, getApiBaseUrl} from "./services";
+import {autoSaveArticle, saveArticle, sendData, fetchEnabledShortcuts, getApiBaseUrl, getPageOperateResult} from "./services";
 import {sseRequestManager} from "./sseTaskManager";
 import {
   getAIProvidersStorage,
@@ -15,6 +15,63 @@ import { streamText } from "ai";
 
 // Store AbortControllers for Vercel AI tasks
 const vercelAIAbortControllers = new Map<string, AbortController>();
+
+// Badge management: cache to avoid redundant API calls
+// Maps tabId -> url to track which URL was last checked for each tab
+const badgeCache = new Map<number, string>();
+
+/**
+ * Update the badge for a tab based on whether the page is saved in Huntly
+ * @param tabId The tab ID to update
+ * @param url The URL to check
+ */
+async function updateBadgeForTab(tabId: number, url: string): Promise<void> {
+  try {
+    // Skip non-http(s) URLs
+    if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
+      chrome.action.setBadgeText({ text: "", tabId });
+      return;
+    }
+
+    // Check if server URL is configured
+    const baseUrl = await getApiBaseUrl();
+    if (!baseUrl) {
+      // No server configured, clear badge
+      chrome.action.setBadgeText({ text: "", tabId });
+      return;
+    }
+
+    // Check cache to avoid redundant API calls
+    const cachedUrl = badgeCache.get(tabId);
+    if (cachedUrl === url) {
+      // Already checked this URL for this tab, skip
+      return;
+    }
+
+    // Update cache
+    badgeCache.set(tabId, url);
+
+    // Call API to check if page is saved
+    const result = await getPageOperateResult(0, url);
+    if (result) {
+      const pageData = JSON.parse(result);
+      if (pageData && pageData.id && pageData.id > 0) {
+        // Page is saved, show badge
+        chrome.action.setBadgeText({ text: "✓", tabId });
+        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50", tabId });
+      } else {
+        // Page is not saved, clear badge
+        chrome.action.setBadgeText({ text: "", tabId });
+      }
+    } else {
+      // No result, clear badge
+      chrome.action.setBadgeText({ text: "", tabId });
+    }
+  } catch (error) {
+    // API error (server offline, etc.), silently clear badge
+    chrome.action.setBadgeText({ text: "", tabId });
+  }
+}
 
 // Cancel a Vercel AI task
 function cancelVercelAITask(taskId: string): boolean {
@@ -470,20 +527,48 @@ function handleSaveArticleResponse(resp: string) {
   }
 }
 
+// Listen for save success to update badge
+chrome.runtime.onMessage.addListener(function (msg: Message, sender) {
+  if (msg.type === "save_clipper_success" && sender.tab?.id && sender.tab?.url) {
+    // Clear cache for this tab so badge will be re-checked
+    badgeCache.delete(sender.tab.id);
+    // Update badge for the tab
+    updateBadgeForTab(sender.tab.id, sender.tab.url);
+  }
+});
+
 chrome.tabs.onUpdated.addListener(function (tabId: number, changeInfo, tab) {
   if (changeInfo.status == "complete") {
     chrome.tabs.sendMessage<Message>(tabId, {
       type: "tab_complete"
     })
+
+    // Update badge when page finishes loading
+    if (tab.url) {
+      updateBadgeForTab(tabId, tab.url);
+    }
   }
 })
+
+// Listen for tab activation (user switches tabs)
+chrome.tabs.onActivated.addListener(function(activeInfo) {
+  // Update badge when user switches to a different tab
+  chrome.tabs.get(activeInfo.tabId, function(tab) {
+    if (tab.url) {
+      updateBadgeForTab(activeInfo.tabId, tab.url);
+    }
+  });
+});
 
 // 监听标签页关闭事件
 chrome.tabs.onRemoved.addListener(function(tabId, removeInfo) {
   // 取消该标签页的所有处理任务
   const cancelledCount = sseRequestManager.cancelTasksByTabId(tabId);
-  
+
   if (cancelledCount > 0) {
     log(`Processing cancelled for ${cancelledCount} tasks due to tab ${tabId} close`);
   }
+
+  // Clean up badge cache for this tab
+  badgeCache.delete(tabId);
 });
