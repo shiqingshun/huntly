@@ -2,18 +2,45 @@
 @tailwind components;
 @tailwind utilities;
 
-body{
+body {
     padding: 0;
     margin: 0;
 }
-.commonPadding{
+
+.commonPadding {
     @apply pl-4 pr-4;
 }
-.header{
+
+.header {
     border-bottom: 1px solid #bbb;
     background: #eeeff4;
+    flex-shrink: 0;
     @apply mb-2 pt-1 pb-1 flex items-center text-base justify-between;
 }
-.mainBorder{
+
+.mainBorder {
     border: 1px solid rgb(207, 217, 222);
+}
+
+/* Custom scrollbar */
+::-webkit-scrollbar {
+    width: 6px;
+}
+
+::-webkit-scrollbar-track {
+    background: transparent;
+}
+
+::-webkit-scrollbar-thumb {
+    background: rgba(0, 0, 0, 0.15);
+    border-radius: 3px;
+}
+
+::-webkit-scrollbar-thumb:hover {
+    background: rgba(0, 0, 0, 0.25);
+}
+
+div {
+    scrollbar-width: thin;
+    scrollbar-color: rgba(0, 0, 0, 0.15) transparent;
 }

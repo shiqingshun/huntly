@@ -198,6 +198,10 @@ const InlineEdit: React.FC<{
           color: "rgba(0,0,0,0.35)",
           opacity: 1,
         },
+        scrollbarWidth: "none",
+        "&::-webkit-scrollbar": {
+          display: "none",
+        },
         ...(maxLines ? {
           display: "-webkit-box",
           WebkitLineClamp: maxLines,
@@ -223,8 +227,7 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
   const menuContainer = useShadowContainer();
   const [title, setTitle] = useState(page.title || "");
   const [description, setDescription] = useState(page.description || "");
-  const [url, setUrl] = useState(page.url || "");
-  const [urlConflict, setUrlConflict] = useState(false);
+  const [url] = useState(page.url || "");
   const [loadingDbState, setLoadingDbState] = useState(false);
   const [saveError, setSaveError] = useState<string | null>(null);
   const [saveSuccess, setSaveSuccess] = useState<string | null>(null);
@@ -238,7 +241,7 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
   const [collectionOptions, setCollectionOptions] = useState<CollectionOption[]>([]);
   const [selectedCollectionId, setSelectedCollectionId] = useState<number | null>(null);
 
-  const originalUrl = useRef(page.url || "");
+
   const originalTitle = useRef(page.title || "");
   const originalDesc = useRef(page.description || "");
 
@@ -257,19 +260,17 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
   const applyDbPageState = useCallback((dbPage: DbPageState) => {
     const nextTitle = dbPage.title || "";
     const nextDescription = dbPage.description || "";
-    const nextUrl = dbPage.url || "";
+
     const nextCollectionId = dbPage.collectionId ?? null;
     const savedDate = dbPage.savedAt || dbPage.createdAt;
     const parsedSavedAt = savedDate ? new Date(savedDate) : null;
 
     setTitle(nextTitle);
     setDescription(nextDescription);
-    setUrl(nextUrl);
     setSelectedCollectionId(nextCollectionId);
     setSavedAt(parsedSavedAt && !Number.isNaN(parsedSavedAt.getTime()) ? parsedSavedAt : null);
     originalTitle.current = nextTitle;
     originalDesc.current = nextDescription;
-    originalUrl.current = nextUrl;
 
     const resultFromDb: PageOperateResult = {
       id: dbPage.id || pageId,
@@ -381,32 +382,6 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
     }
   }, [description, pageId, showError, updateResult]);
 
-  const handleUrlChange = useCallback(
-    (value: string) => {
-      setUrl(value);
-      setUrlConflict(false);
-    },
-    []
-  );
-
-  const handleUrlBlur = useCallback(async () => {
-    if (url !== originalUrl.current && url) {
-      try {
-        setSaveError(null);
-        setUrlConflict(false);
-        const result = await updatePageDetail(pageId, { url });
-        updateResult(result);
-        originalUrl.current = url;
-      } catch (error) {
-        const errorMessage = (error as Error)?.message || "";
-        if (errorMessage.includes("URL_CONFLICT")) {
-          setUrlConflict(true);
-        } else {
-          showError("Auto-save failed for URL.", error);
-        }
-      }
-    }
-  }, [url, pageId, showError, updateResult]);
 
   const handleCollectionChange = useCallback(async (collectionId: number | null) => {
     const previousCollectionId = selectedCollectionId;
@@ -545,15 +520,16 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
     faviconUrl || `https://www.google.com/s2/favicons?domain=${page.domain}&sz=32`;
 
   return (
-    <Box sx={{ width: "100%", pt: 1, pb: 1.5 }}>
-      {/* Header: back button + favicon + inline-editable title & description */}
+    <Box sx={{ width: "100%", display: "flex", flexDirection: "column", height: "100%", minHeight: 0 }}>
+      {/* Header: back button + favicon + inline-editable title & description — sticky */}
       <Box sx={{
         display: "flex",
         alignItems: "flex-start",
         px: 1.5,
+        pt: 1,
         pb: 1.5,
-        mb: 0.5,
         borderBottom: "1px solid rgba(0,0,0,0.06)",
+        flexShrink: 0,
       }}>
         {onClose && (
           <IconButton
@@ -621,11 +597,48 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
               maxLines={2}
             />
           </Box>
+          <Typography
+            variant="caption"
+            sx={{
+              display: "block",
+              mt: 0.5,
+              fontSize: "0.75rem",
+              color: "text.disabled",
+              whiteSpace: "nowrap",
+              overflow: "hidden",
+              textOverflow: "ellipsis",
+              width: "100%",
+            }}
+            title={url}
+          >
+            {url}
+          </Typography>
         </Box>
       </Box>
 
-      {/* Form rows */}
-      <Box sx={{ px: 1.5 }}>
+      {/* Scrollable content area */}
+      <Box sx={{
+        flex: 1,
+        minHeight: 0,
+        overflowY: "auto",
+        px: 1.5,
+        pb: 2.5, // 增加底部内边距，确保最底下元素显示完整
+        "&::-webkit-scrollbar": {
+          width: 6,
+        },
+        "&::-webkit-scrollbar-track": {
+          background: "transparent",
+        },
+        "&::-webkit-scrollbar-thumb": {
+          background: "rgba(0,0,0,0.15)",
+          borderRadius: 3,
+        },
+        "&::-webkit-scrollbar-thumb:hover": {
+          background: "rgba(0,0,0,0.25)",
+        },
+        scrollbarWidth: "none",
+        scrollbarColor: "rgba(0,0,0,0.15) transparent",
+      }}>
         {loadingDbState && (
           <Box sx={{
             display: "flex",
@@ -755,55 +768,6 @@ const SaveDetailPanel: React.FC<SaveDetailPanelProps> = ({
               ]}
             </Select>
           </FormControl>
-        </FormRow>
-
-        {/* URL */}
-        <FormRow label="URL" alignItems="flex-start" labelPt={0.8}>
-          <Box sx={{ flex: 1 }}>
-            <InputBase
-              value={url}
-              onChange={(e) => handleUrlChange(e.target.value)}
-              onBlur={handleUrlBlur}
-              fullWidth
-              multiline
-              maxRows={1}
-              sx={{
-                fontSize: "0.85rem",
-                color: "text.secondary",
-                backgroundColor: "rgba(0,0,0,0.02)",
-                borderRadius: "8px",
-                border: urlConflict ? "1.5px solid #d32f2f" : "1.5px solid rgba(0,0,0,0.08)",
-                px: 1.2,
-                py: 0.7,
-                transition: "all 0.2s ease",
-                cursor: "text",
-                "&:hover": {
-                  backgroundColor: "rgba(0,0,0,0.04)",
-                  borderColor: urlConflict ? "#d32f2f" : "rgba(0,0,0,0.15)",
-                },
-                "&:focus-within": {
-                  color: "text.primary",
-                  backgroundColor: "#fff",
-                  borderColor: urlConflict ? "#d32f2f" : "#1976d2",
-                  "& .MuiInputBase-input": {
-                    whiteSpace: "normal",
-                    overflow: "visible",
-                  },
-                },
-                "& .MuiInputBase-input": {
-                  padding: 0,
-                  whiteSpace: "nowrap",
-                  overflow: "hidden",
-                  textOverflow: "ellipsis",
-                },
-              }}
-            />
-            {urlConflict && (
-              <Typography variant="caption" color="error" sx={{ mt: 0.5, display: "block", pl: 0.5 }}>
-                This URL already exists in your library
-              </Typography>
-            )}
-          </Box>
         </FormRow>
 
         {page.contentType !== 4 && (
