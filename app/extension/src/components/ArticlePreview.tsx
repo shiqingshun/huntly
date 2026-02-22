@@ -2,10 +2,12 @@ import React, { useState, useEffect, useCallback, useRef } from "react";
 import ReactMarkdown from "react-markdown";
 import remarkGfm from "remark-gfm";
 import TurndownService from "turndown";
-import { ContentParserType } from "../storage";
+import { ContentParserType, readSyncStorageSettings } from "../storage";
+import { PageOperateResult } from "../model/pageOperateResult";
 import { parseDocument } from "../parser/contentParser";
 import AIToolbar, { ShortcutItem, ModelItem, AIGradientDef, ExternalShortcutsData, ExternalModelsData } from "./AIToolbar";
-import { useShadowContainer } from "./ShadowDomPreview";
+import SaveDetailPanel from "./SaveDetailPanel";
+import { useShadowContainer } from "./shadowContainerContext";
 
 // Create turndown instance for HTML to markdown conversion
 const turndownService = new TurndownService({
@@ -113,6 +115,23 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
   const [showProcessedSection, setShowProcessedSection] = useState(false);
   const [currentTaskId, setCurrentTaskId] = useState<string | null>(null);
   const [processingError, setProcessingError] = useState<string | null>(null);
+  const [showEditPanel, setShowEditPanel] = useState(false);
+  const [editLoading, setEditLoading] = useState(false);
+  const [editError, setEditError] = useState<string | null>(null);
+  const [editData, setEditData] = useState<{
+    pageId: number;
+    page: PageModel;
+    operateResult: PageOperateResult;
+    collectionTree?: any;
+  } | null>(null);
+  const [serverConfigured, setServerConfigured] = useState(false);
+
+  // Check if Huntly server is configured
+  useEffect(() => {
+    readSyncStorageSettings().then((settings) => {
+      setServerConfigured(!!settings.serverUrl);
+    });
+  }, []);
 
   // Get shadow container for MUI Menu components
   const shadowContainer = useShadowContainer();
@@ -216,6 +235,77 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
     return () => chrome.runtime.onMessage.removeListener(messageListener);
   }, [currentTaskId]);
 
+  const sendRuntimeMessage = useCallback((message: unknown): Promise<any> => {
+    return new Promise((resolve, reject) => {
+      chrome.runtime.sendMessage(message, (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        resolve(response);
+      });
+    });
+  }, []);
+
+  const initEditPanel = useCallback(async () => {
+    setEditLoading(true);
+    setEditError(null);
+    try {
+      const response = await sendRuntimeMessage({
+        type: "save_detail_init",
+        payload: {
+          data: {
+            page: {
+              title: page.title,
+              description: page.description,
+              url: page.url,
+              domain: page.domain,
+              faviconUrl: page.faviconUrl,
+              thumbUrl: page.thumbUrl,
+              content: page.content,
+              contentType: page.contentType,
+            },
+            initialParserType: parserType,
+            faviconUrl: page.faviconUrl,
+          },
+        },
+      });
+      if (!response?.success) {
+        const errorMsg = response?.error || "Failed to initialize save details.";
+        // Detect auth/login errors
+        if (errorMsg.includes("401") || errorMsg.includes("403") || errorMsg.includes("Unauthorized") || errorMsg.includes("Failed to fetch")) {
+          setEditError("Please log in to Huntly server first.");
+        } else {
+          setEditError(errorMsg);
+        }
+        return;
+      }
+      const data = response?.data || {};
+      const detailData = {
+        pageId: data.pageId,
+        page: data.page || page,
+        operateResult: data.operateResult,
+        collectionTree: data.collectionTree,
+      };
+      setEditData(detailData);
+    } catch (error) {
+      setEditError((error as Error)?.message || "Failed to initialize save details.");
+    } finally {
+      setEditLoading(false);
+    }
+  }, [page, parserType, sendRuntimeMessage]);
+
+  const handleEditButtonClick = useCallback(() => {
+    if (showEditPanel) {
+      setShowEditPanel(false);
+      return;
+    }
+    setShowEditPanel(true);
+    if (!editData && !editLoading) {
+      initEditPanel();
+    }
+  }, [editData, editLoading, initEditPanel, showEditPanel]);
+
   // Handle escape key
   useEffect(() => {
     const handleKeyDown = (e: KeyboardEvent) => {
@@ -270,8 +360,27 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
               initialSelectedModel={autoSelectedModel}
             />
 
-            {/* Right section: Parser selector and Close button */}
+            {/* Right section: Save detail, Parser selector and Close button */}
             <div className="huntly-header-right">
+              {/* Save detail button - only show when server is configured */}
+              {serverConfigured && (
+                <button
+                  className="huntly-icon-button"
+                  onClick={handleEditButtonClick}
+                  title="Edit details"
+                  disabled={editLoading}
+                >
+                  {editLoading ? (
+                    <svg className="huntly-icon-spin" viewBox="0 0 24 24" fill="none" stroke="currentColor" strokeWidth="2">
+                      <circle cx="12" cy="12" r="10" strokeDasharray="32" strokeDashoffset="12" />
+                    </svg>
+                  ) : (
+                    <svg viewBox="0 0 24 24" fill="currentColor">
+                      <path d="M3 17.25V21h3.75L17.81 9.94l-3.75-3.75L3 17.25zM20.71 7.04c.39-.39.39-1.02 0-1.41l-2.34-2.34c-.39-.39-1.02-.39-1.41 0l-1.83 1.83 3.75 3.75 1.83-1.83z" />
+                    </svg>
+                  )}
+                </button>
+              )}
               {/* Parser selector */}
               <div className="huntly-parser-selector">
                 <span className="huntly-parser-label">Parser:</span>
@@ -291,6 +400,48 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
               </button>
             </div>
           </div>
+
+          {showEditPanel && (
+            <>
+              {/* Backdrop to close drawer on outside click */}
+              <div
+                className="huntly-edit-drawer-backdrop"
+                onClick={() => setShowEditPanel(false)}
+              />
+              <div
+                className="huntly-edit-drawer"
+                role="dialog"
+                aria-label="Edit details panel"
+                onClick={(e) => e.stopPropagation()}
+              >
+                {editError && <div className="huntly-edit-alert huntly-edit-alert-error">{editError}</div>}
+                {editLoading ? (
+                  <div className="huntly-edit-loading">Preparing editor...</div>
+                ) : editData ? (
+                  <div className="huntly-edit-panel-body">
+                    <SaveDetailPanel
+                      pageId={editData.pageId}
+                      page={editData.page}
+                      operateResult={editData.operateResult}
+                      initialParserType={parserType}
+                      faviconUrl={page.faviconUrl}
+                      collectionTree={editData.collectionTree}
+                      onClose={() => setShowEditPanel(false)}
+                      onDeleted={() => {
+                        setShowEditPanel(false);
+                        setEditData(null);
+                      }}
+                      onOperateResultChanged={(result) => {
+                        setEditData((prev) => (prev ? { ...prev, operateResult: result } : prev));
+                      }}
+                    />
+                  </div>
+                ) : (
+                  <div className="huntly-edit-loading">Unable to load editor.</div>
+                )}
+              </div>
+            </>
+          )}
 
           {/* Content area */}
           <div className="huntly-content-area">
@@ -329,4 +480,3 @@ export const ArticlePreview: React.FC<ArticlePreviewProps> = ({
 };
 
 export default ArticlePreview;
-

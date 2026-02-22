@@ -243,6 +243,144 @@ export const getShadowDomStyles = (): string => `
   box-shadow: 0 0 0 2px rgba(25, 118, 210, 0.15);
 }
 
+/* Detail button */
+.huntly-detail-button {
+  height: 30px;
+  padding: 0 12px;
+  border: 1px solid rgba(0, 0, 0, 0.25);
+  background: #fff;
+  border-radius: 8px;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: border-color 0.2s, background-color 0.2s, color 0.2s;
+  flex-shrink: 0;
+  box-shadow: none;
+  color: #333;
+  font-size: 13px;
+  font-weight: 500;
+  line-height: 1;
+}
+
+.huntly-detail-button:hover {
+  border-color: #1976d2;
+  background: rgba(25, 118, 210, 0.04);
+  color: #0d47a1;
+}
+
+/* Icon button (for edit, etc.) */
+.huntly-icon-button {
+  width: 32px;
+  height: 32px;
+  border: none;
+  background: transparent;
+  border-radius: 50%;
+  cursor: pointer;
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  transition: background 0.2s;
+  flex-shrink: 0;
+}
+
+.huntly-icon-button:hover {
+  background: rgba(0, 0, 0, 0.08);
+}
+
+.huntly-icon-button:disabled {
+  opacity: 0.5;
+  cursor: not-allowed;
+}
+
+.huntly-icon-button svg {
+  width: 18px;
+  height: 18px;
+  color: #666;
+}
+
+.huntly-icon-spin {
+  animation: huntly-spin 1s linear infinite;
+}
+
+@keyframes huntly-spin {
+  from { transform: rotate(0deg); }
+  to { transform: rotate(360deg); }
+}
+
+/* Edit drawer backdrop - click to close */
+.huntly-edit-drawer-backdrop {
+  position: absolute;
+  top: 0;
+  left: 0;
+  right: 0;
+  bottom: 0;
+  z-index: 1299;
+  background: transparent;
+}
+
+/* Inline edit drawer */
+.huntly-edit-drawer {
+  position: absolute;
+  top: 70px;
+  right: 16px;
+  height: auto;
+  max-height: min(640px, calc(100% - 86px));
+  width: 600px;
+  max-width: calc(100% - 32px);
+  border: 1px solid rgba(0, 0, 0, 0.12);
+  border-radius: 12px;
+  background: rgba(255, 255, 255, 0.98);
+  box-shadow: 0 8px 24px rgba(0, 0, 0, 0.12);
+  z-index: 1300;
+  display: flex;
+  flex-direction: column;
+  padding: 14px;
+  gap: 10px;
+  backdrop-filter: blur(8px);
+  overflow-y: auto;
+}
+
+.huntly-edit-panel-body {
+  flex: 1;
+  min-height: 0;
+  overflow-y: auto;
+}
+
+.huntly-edit-loading {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  flex: 1;
+  min-height: 220px;
+  color: #6b7280;
+  font-size: 13px;
+}
+
+.huntly-edit-drawer-header {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+}
+
+.huntly-edit-title {
+  font-size: 14px;
+  font-weight: 600;
+  color: #1f2937;
+}
+
+.huntly-edit-alert {
+  border-radius: 8px;
+  padding: 8px 10px;
+  font-size: 12px;
+}
+
+.huntly-edit-alert-error {
+  color: #991b1b;
+  background: #fef2f2;
+  border: 1px solid #fecaca;
+}
+
 /* Close button */
 .huntly-close-button {
   width: 32px;

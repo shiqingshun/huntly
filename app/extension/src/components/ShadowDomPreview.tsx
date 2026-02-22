@@ -1,4 +1,4 @@
-import React, { useEffect, useRef, createContext, useContext } from "react";
+import React, { useEffect, useRef } from "react";
 import { createRoot, Root } from "react-dom/client";
 import createCache from "@emotion/cache";
 import { CacheProvider } from "@emotion/react";
@@ -7,6 +7,7 @@ import { getShadowDomStyles } from "../styles/shadowDomStyles";
 import { ArticlePreview } from "./ArticlePreview";
 import { ContentParserType } from "../storage";
 import { ExternalShortcutsData, ExternalModelsData, ShortcutItem, ModelItem } from "./AIToolbar";
+import { ShadowContainerContext } from "./shadowContainerContext";
 
 interface ShadowDomPreviewProps {
   page: PageModel;
@@ -22,12 +23,6 @@ interface ShadowDomPreviewProps {
   /** Model to use for auto-execute */
   autoSelectedModel?: ModelItem | null;
 }
-
-// Context for Shadow DOM container (used by MUI Menu components)
-export const ShadowContainerContext = createContext<HTMLElement | null>(null);
-
-// Hook to get the shadow container
-export const useShadowContainer = () => useContext(ShadowContainerContext);
 
 interface ShadowContentProps {
   emotionCache: ReturnType<typeof createCache>;
@@ -64,7 +59,7 @@ const ShadowContent: React.FC<ShadowContentProps> = ({ emotionCache, container, 
         styleOverrides: {
           paper: {
             // Ensure menu paper has proper z-index in shadow DOM
-            zIndex: 99999,
+            zIndex: 9999999,
           },
         },
       },
@@ -161,4 +156,3 @@ export const ShadowDomPreview: React.FC<ShadowDomPreviewProps> = (props) => {
 };
 
 export default ShadowDomPreview;
-

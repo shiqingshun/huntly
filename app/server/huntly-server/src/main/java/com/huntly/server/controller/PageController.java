@@ -5,6 +5,7 @@ import com.huntly.interfaces.external.dto.PageItem;
 import com.huntly.interfaces.external.dto.PageOperateResult;
 import com.huntly.interfaces.external.model.ArticleContent;
 import com.huntly.interfaces.external.model.CapturePage;
+import com.huntly.interfaces.external.model.UpdatePageDetailRequest;
 import com.huntly.interfaces.external.query.PageListQuery;
 import com.huntly.interfaces.external.query.PageQuery;
 import com.huntly.server.domain.entity.Page;
@@ -176,6 +177,12 @@ public class PageController {
             @RequestBody java.util.Map<String, Long> body) {
         Long collectionId = body.get("collectionId"); // null means Unsorted
         pageService.updatePageCollection(id, collectionId);
+    }
+
+    @PatchMapping("/{id}/detail")
+    public PageOperateResult updatePageDetail(@Valid @NotNull @PathVariable("id") Long id,
+            @RequestBody UpdatePageDetailRequest request) {
+        return pageService.updatePageDetail(id, request);
     }
 
     /**
