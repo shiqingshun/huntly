@@ -1,6 +1,17 @@
 import {log} from "./logger";
 import {readSyncStorageSettings, getPromptsSettings, getLanguageNativeName} from "./storage";
-import {autoSaveArticle, saveArticle, sendData, fetchEnabledShortcuts, getApiBaseUrl, getPageOperateResult} from "./services";
+import {
+  autoSaveArticle,
+  saveArticle,
+  sendData,
+  fetchEnabledShortcuts,
+  getApiBaseUrl,
+  getPageOperateResult,
+  savePageToLibrary,
+  getPageDetail,
+  getCollectionTree,
+} from "./services";
+import { combineUrl } from "./utils";
 import {sseRequestManager} from "./sseTaskManager";
 import {
   getAIProvidersStorage,
@@ -19,13 +30,16 @@ const vercelAIAbortControllers = new Map<string, AbortController>();
 // Badge management: cache to avoid redundant API calls
 // Maps tabId -> url to track which URL was last checked for each tab
 const badgeCache = new Map<number, string>();
+const SAVED_BADGE_TEXT = "✓";
+const SAVED_BADGE_BG = "#15803D";
 
 /**
  * Update the badge for a tab based on whether the page is saved in Huntly
  * @param tabId The tab ID to update
  * @param url The URL to check
+ * @param forceRefresh If true, bypass the cache and re-check the URL
  */
-async function updateBadgeForTab(tabId: number, url: string): Promise<void> {
+async function updateBadgeForTab(tabId: number, url: string, forceRefresh: boolean = false): Promise<void> {
   try {
     // Skip non-http(s) URLs
     if (!url || (!url.startsWith('http://') && !url.startsWith('https://'))) {
@@ -41,11 +55,13 @@ async function updateBadgeForTab(tabId: number, url: string): Promise<void> {
       return;
     }
 
-    // Check cache to avoid redundant API calls
-    const cachedUrl = badgeCache.get(tabId);
-    if (cachedUrl === url) {
-      // Already checked this URL for this tab, skip
-      return;
+    // Check cache to avoid redundant API calls (unless force refresh)
+    if (!forceRefresh) {
+      const cachedUrl = badgeCache.get(tabId);
+      if (cachedUrl === url) {
+        // Already checked this URL for this tab, skip
+        return;
+      }
     }
 
     // Update cache
@@ -57,8 +73,8 @@ async function updateBadgeForTab(tabId: number, url: string): Promise<void> {
       const pageData = JSON.parse(result);
       if (pageData && pageData.id && pageData.id > 0) {
         // Page is saved, show badge
-        chrome.action.setBadgeText({ text: "✓", tabId });
-        chrome.action.setBadgeBackgroundColor({ color: "#4CAF50", tabId });
+        chrome.action.setBadgeText({ text: SAVED_BADGE_TEXT, tabId });
+        chrome.action.setBadgeBackgroundColor({ color: SAVED_BADGE_BG, tabId });
       } else {
         // Page is not saved, clear badge
         chrome.action.setBadgeText({ text: "", tabId });
@@ -428,6 +444,95 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
     if (url) {
       chrome.tabs.create({ url });
     }
+  } else if ((msg as any).type === 'badge_refresh') {
+    // Refresh badge for a specific tab after manual save/delete from popup
+    const tabId = msg.payload?.tabId;
+    const url = msg.payload?.url;
+    if (tabId && url) {
+      updateBadgeForTab(tabId, url, true);
+    } else {
+      refreshBadgeForActiveTab();
+    }
+  } else if ((msg as any).type === 'http_proxy') {
+    const { method, baseUrl, url, data } = msg.payload || {};
+    if (!baseUrl || !url) {
+      sendResponse({ success: false, error: 'Invalid proxy request.' });
+      return;
+    }
+
+    (async () => {
+      try {
+        const fullUrl = combineUrl(baseUrl, url);
+        const init: RequestInit = {
+          method: method || 'GET',
+          cache: 'no-cache',
+          credentials: 'include',
+          headers: {
+            'Content-Type': 'application/json',
+          },
+        };
+        if (data !== undefined && method !== 'GET' && method !== 'DELETE') {
+          init.body = JSON.stringify(data);
+        }
+
+        const response = await fetch(fullUrl, init);
+        const text = await response.text();
+        sendResponse({ success: true, data: text, status: response.status });
+      } catch (error) {
+        sendResponse({ success: false, error: (error as Error)?.message || 'http_proxy failed' });
+      }
+    })();
+    return true;
+  } else if ((msg as any).type === 'save_detail_init') {
+    const { data } = msg.payload || {};
+    const inputPage = data?.page as PageModel | undefined;
+    if (!inputPage?.url) {
+      sendResponse({ success: false, error: 'Invalid page data for save detail initialization.' });
+      return;
+    }
+
+    (async () => {
+      try {
+        const resp = await saveArticle(inputPage);
+        if (!resp) {
+          sendResponse({ success: false, error: 'Failed to save page.' });
+          return;
+        }
+        const json = JSON.parse(resp);
+        const pageId = json?.data as number;
+        if (!pageId || pageId <= 0) {
+          sendResponse({ success: false, error: 'Invalid page id from save API.' });
+          return;
+        }
+
+        const operateResult = await savePageToLibrary(pageId);
+        const detail = await getPageDetail(pageId);
+        const dbPage = detail?.page || {};
+        // Also fetch collection tree for the SaveDetailPanel
+        const collectionTree = await getCollectionTree();
+
+        sendResponse({
+          success: true,
+          data: {
+            pageId,
+            operateResult,
+            collectionTree,
+            page: {
+              ...inputPage,
+              title: dbPage.title || inputPage.title,
+              description: dbPage.description || inputPage.description,
+              url: dbPage.url || inputPage.url,
+              domain: dbPage.domain || inputPage.domain,
+              faviconUrl: dbPage.faviconUrl || inputPage.faviconUrl,
+              thumbUrl: dbPage.thumbUrl || inputPage.thumbUrl,
+            },
+          },
+        });
+      } catch (error) {
+        sendResponse({ success: false, error: (error as Error)?.message || 'save_detail_init failed' });
+      }
+    })();
+    return true;
   }
 });
 
@@ -523,19 +628,23 @@ function handleSaveArticleResponse(resp: string) {
     chrome.runtime.sendMessage({
       type: "save_clipper_success",
       payload: {id: json.data}
-    })
+    });
+    // Update badge for the active tab after auto-save
+    refreshBadgeForActiveTab();
   }
 }
 
-// Listen for save success to update badge
-chrome.runtime.onMessage.addListener(function (msg: Message, sender) {
-  if (msg.type === "save_clipper_success" && sender.tab?.id && sender.tab?.url) {
-    // Clear cache for this tab so badge will be re-checked
-    badgeCache.delete(sender.tab.id);
-    // Update badge for the tab
-    updateBadgeForTab(sender.tab.id, sender.tab.url);
-  }
-});
+/**
+ * Refresh the badge for the currently active tab (force re-check)
+ */
+function refreshBadgeForActiveTab() {
+  chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+    const tab = tabs[0];
+    if (tab?.id && tab?.url) {
+      updateBadgeForTab(tab.id, tab.url, true);
+    }
+  });
+}
 
 chrome.tabs.onUpdated.addListener(function (tabId: number, changeInfo, tab) {
   if (changeInfo.status == "complete") {
@@ -547,6 +656,13 @@ chrome.tabs.onUpdated.addListener(function (tabId: number, changeInfo, tab) {
     if (tab.url) {
       updateBadgeForTab(tabId, tab.url);
     }
+  }
+
+  // Also handle URL changes (SPA navigation) without waiting for "complete"
+  if (changeInfo.url) {
+    // Clear cache for this tab since URL changed
+    badgeCache.delete(tabId);
+    updateBadgeForTab(tabId, changeInfo.url);
   }
 })
 
@@ -571,4 +687,80 @@ chrome.tabs.onRemoved.addListener(function(tabId, removeInfo) {
 
   // Clean up badge cache for this tab
   badgeCache.delete(tabId);
+});
+
+// Create context menu for Reading Mode
+const CONTEXT_MENU_READING_MODE_PAGE = "huntly_reading_mode_page";
+const CONTEXT_MENU_READING_MODE_SELECTION = "huntly_reading_mode_selection";
+const CONTEXT_MENU_READING_MODE_ACTION = "huntly_reading_mode_action";
+
+chrome.runtime.onInstalled.addListener(() => {
+  // Context menu for page (no selection)
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_READING_MODE_PAGE,
+    title: "Huntly Reading Mode",
+    contexts: ["page"],
+  });
+
+  // Context menu for selection (snippet mode)
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_READING_MODE_SELECTION,
+    title: "Huntly Reading Mode",
+    contexts: ["selection"],
+  });
+
+  // Context menu for extension icon (action)
+  chrome.contextMenus.create({
+    id: CONTEXT_MENU_READING_MODE_ACTION,
+    title: "Huntly Reading Mode",
+    contexts: ["action"],
+  });
+});
+
+// Handle context menu click
+chrome.contextMenus.onClicked.addListener(async (info, tab) => {
+  if (!tab?.id) return;
+
+  const isSelectionMode = info.menuItemId === CONTEXT_MENU_READING_MODE_SELECTION;
+  const isReadingModeMenu = info.menuItemId === CONTEXT_MENU_READING_MODE_PAGE ||
+                            info.menuItemId === CONTEXT_MENU_READING_MODE_SELECTION ||
+                            info.menuItemId === CONTEXT_MENU_READING_MODE_ACTION;
+
+  if (!isReadingModeMenu) return;
+
+  // Get AI toolbar data
+  const aiToolbarData = await getAIToolbarData().catch(() => null);
+
+  if (isSelectionMode) {
+    // Get selection content from content script and open snippet reading mode
+    chrome.tabs.sendMessage(tab.id, { type: 'get_selection' }, (response) => {
+      if (chrome.runtime.lastError) {
+        log("Failed to get selection:", chrome.runtime.lastError);
+        return;
+      }
+
+      const page = response?.page;
+      if (page) {
+        // Open reading mode with snippet
+        chrome.tabs.sendMessage(tab.id!, {
+          type: 'shortcuts_preview',
+          payload: {
+            page: page,
+            externalShortcuts: aiToolbarData?.externalShortcuts,
+            externalModels: aiToolbarData?.externalModels,
+          }
+        });
+      }
+    });
+  } else {
+    // Open full page reading mode
+    chrome.tabs.sendMessage(tab.id, {
+      type: 'shortcuts_preview',
+      payload: {
+        page: null, // null means content script will parse the current page
+        externalShortcuts: aiToolbarData?.externalShortcuts,
+        externalModels: aiToolbarData?.externalModels,
+      }
+    });
+  }
 });

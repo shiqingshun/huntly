@@ -4,6 +4,7 @@ import com.huntly.common.exceptions.NoSuchDataException;
 import com.huntly.interfaces.external.dto.ConnectorItem;
 import com.huntly.interfaces.external.dto.PageOperateResult;
 import com.huntly.interfaces.external.model.LibrarySaveStatus;
+import com.huntly.interfaces.external.model.UpdatePageDetailRequest;
 import com.huntly.interfaces.external.query.PageQuery;
 import com.huntly.server.domain.constant.AppConstants;
 import com.huntly.server.domain.entity.Connector;
@@ -22,6 +23,7 @@ import com.huntly.server.util.*;
 import org.apache.commons.lang3.ObjectUtils;
 import org.apache.commons.lang3.StringUtils;
 import org.springframework.data.domain.PageRequest;
+import org.springframework.data.domain.Pageable;
 import org.springframework.stereotype.Service;
 import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 import java.io.IOException;
@@ -114,7 +116,8 @@ public class PageService extends BasePageService {
 
     public void setPageLibrarySaveStatus(Page page, LibrarySaveStatus librarySaveStatus) {
         page.setLibrarySaveStatus(librarySaveStatus.getCode());
-        if (librarySaveStatus.getCode() == LibrarySaveStatus.SAVED.getCode() || librarySaveStatus.getCode() == LibrarySaveStatus.ARCHIVED.getCode()) {
+        if (librarySaveStatus.getCode() == LibrarySaveStatus.SAVED.getCode()
+                || librarySaveStatus.getCode() == LibrarySaveStatus.ARCHIVED.getCode()) {
             if (librarySaveStatus.getCode() == LibrarySaveStatus.SAVED.getCode()) {
                 page.setSavedAt(Instant.now());
             }
@@ -453,11 +456,49 @@ public class PageService extends BasePageService {
 
     /**
      * Update the collection assignment for a page.
-     * If the page is not saved yet (librarySaveStatus is NOT_SAVED), it will be automatically saved.
+     * If the page is not saved yet (librarySaveStatus is NOT_SAVED), it will be
+     * automatically saved.
      *
      * @param id           the page ID
      * @param collectionId the collection ID to assign, or null for Unsorted
      */
+    public PageOperateResult updatePageDetail(Long id, UpdatePageDetailRequest request) {
+        var page = requireOne(id);
+        if (request.getTitle() != null) {
+            page.setTitle(request.getTitle());
+        }
+        if (request.getDescription() != null) {
+            page.setDescription(request.getDescription());
+        }
+        if (request.getUrl() != null && !Objects.equals(page.getUrl(), request.getUrl())) {
+            // Check for URL conflict before updating
+            Long conflictId = checkUrlConflict(request.getUrl(), id);
+            if (conflictId != null) {
+                throw new IllegalArgumentException("URL_CONFLICT: This URL already exists in your library");
+            }
+            page.setUrl(request.getUrl());
+            page.setUrlWithoutHash(request.getUrl().contains("#") ? request.getUrl().split("#")[0] : request.getUrl());
+        }
+        if (request.getContent() != null) {
+            HtmlText htmlText = HtmlUtils.clean(request.getContent(), page.getUrl());
+            page.setContent(htmlText.getHtml());
+            page.setContentText(htmlText.getText());
+            page.setUpdatedAt(Instant.now());
+        }
+        save(page);
+        return toPageOperateResult(page);
+    }
+
+    public Long checkUrlConflict(String url, Long excludePageId) {
+        Integer snippetContentType = 4;
+        Pageable limitOne = PageRequest.of(0, 1);
+        List<Page> pages = pageRepository.findByUrlExcludingContentType(url, snippetContentType, limitOne);
+        if (!pages.isEmpty() && !pages.get(0).getId().equals(excludePageId)) {
+            return pages.get(0).getId();
+        }
+        return null;
+    }
+
     public void updatePageCollection(Long id, Long collectionId) {
         var page = requireOne(id);
         // Update collectedAt timestamp when collection changes
@@ -467,7 +508,7 @@ public class PageService extends BasePageService {
         }
         // Auto-save if not already saved or archived
         if (page.getLibrarySaveStatus() == null ||
-            page.getLibrarySaveStatus() == LibrarySaveStatus.NOT_SAVED.getCode()) {
+                page.getLibrarySaveStatus() == LibrarySaveStatus.NOT_SAVED.getCode()) {
             setPageLibrarySaveStatus(page, LibrarySaveStatus.SAVED);
         }
         save(page);

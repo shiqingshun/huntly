@@ -30,6 +30,7 @@ import StarIcon from '@mui/icons-material/Star';
 import ArchiveIcon from '@mui/icons-material/Archive';
 import ArchiveOutlinedIcon from '@mui/icons-material/ArchiveOutlined';
 import MenuBookTwoToneIcon from '@mui/icons-material/MenuBookTwoTone';
+import EditOutlinedIcon from '@mui/icons-material/EditOutlined';
 import {log} from "./logger";
 import {
   archivePage,
@@ -45,6 +46,7 @@ import {LibrarySaveStatus} from "./model/librarySaveStatus";
 import {PageOperateResult} from "./model/pageOperateResult";
 import {detectRssFeed, RssSubscription} from "./rss";
 import AIToolbar, { ShortcutItem, ModelItem, AIGradientDef } from "./components/AIToolbar";
+import SaveDetailPanel from "./components/SaveDetailPanel";
 
 // Parser selector component - only shows the alternative parser option
 const ParserSelector = ({ parserType, onParserChange }: {
@@ -100,6 +102,9 @@ const Popup = () => {
 
     // AI processing state
     const [processingShortcut, setProcessingShortcut] = useState(false);
+
+    // Save detail panel state
+    const [showDetailPanel, setShowDetailPanel] = useState(false);
 
     // RSS Feed Detection
     const [isRssFeed, setIsRssFeed] = useState(false);
@@ -319,10 +324,23 @@ const Popup = () => {
       chrome.tabs.create({url: storageSettings.serverUrl});
     }
 
+    function notifyBadgeRefresh() {
+      chrome.tabs.query({ active: true, currentWindow: true }, function(tabs) {
+        const tab = tabs[0];
+        if (tab) {
+          chrome.runtime.sendMessage({
+            type: 'badge_refresh',
+            payload: { tabId: tab.id, url: tab.url }
+          });
+        }
+      });
+    }
+
     async function sendToHuntly() {
       const pageId = await savePage(activePage);
       if (pageId > 0) {
         loadPageOperateResult(pageId, activePage.url, setActiveOperateResult);
+        notifyBadgeRefresh();
       }
     }
 
@@ -348,42 +366,62 @@ const Popup = () => {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await unReadLaterPage(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
     }
 
     async function readLater() {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await readLaterPage(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
     }
 
     async function unStar() {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await unStarPage(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
     }
 
     async function star() {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await starPage(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
     }
 
     async function saveToLibrary() {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await savePageToLibrary(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
     }
 
     async function removeFromLibrary() {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await removePageFromLibrary(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
     }
 
     async function archive() {
       const pageId = await ensureSavePage(activePage);
       const operateResult = await archivePage(pageId);
       setActiveOperateResult(operateResult);
+      notifyBadgeRefresh();
+    }
+
+    async function openSaveDetailPanel() {
+      const pageId = await ensureSavePage(activePage);
+      if (pageId > 0) {
+        // Ensure it's saved to library (mylist)
+        if (!activeOperateResult?.id || activeOperateResult.librarySaveStatus === LibrarySaveStatus.NotSaved) {
+          const operateResult = await savePageToLibrary(pageId);
+          setActiveOperateResult(operateResult);
+          notifyBadgeRefresh();
+        }
+        setShowDetailPanel(true);
+      }
     }
 
     const [openDeleteDialog, setOpenDeleteDialog] = useState(false);
@@ -393,6 +431,7 @@ const Popup = () => {
         await deletePage(activeOperateResult.id);
         setActiveOperateResult(null);
         handleCloseDeleteDialog();
+        notifyBadgeRefresh();
       }
     }
 
@@ -657,16 +696,8 @@ const Popup = () => {
                         </div>
                       }
                       {
-                        storageSettings?.serverUrl && !isHuntlySite && activeTab === 0 && autoSavedPageId > 0 && <div className={'mb-2'}>
-                          <Alert severity={'success'}>This webpage has been automatically hunted.
-                            <a href={combineUrl(storageSettings.serverUrl, "/page/" + autoSavedPageId)} target={'_blank'}
-                               className={'ml-1'}>view</a>
-                          </Alert>
-                        </div>
-                      }
-                      {
-                        storageSettings?.serverUrl && !isHuntlySite && !autoSavedPageId && activeOperateResult && activeOperateResult.id > 0 && <div className={'mb-2'}>
-                          <Alert severity={'info'}>
+                        storageSettings?.serverUrl && !isHuntlySite && activeOperateResult && activeOperateResult.id > 0 && <div className={'mb-2'}>
+                          <Alert severity={'success'}>
                             {activeTab === 0 ? 'This webpage has been hunted.' : 'This snippet has been saved.'}
                             <a href={combineUrl(storageSettings.serverUrl, "/page/" + activeOperateResult.id)} target={'_blank'}
                                className={'ml-1'}>view</a>
@@ -674,10 +705,26 @@ const Popup = () => {
                         </div>
                       }
                       <div>
+                        {showDetailPanel && activeOperateResult?.id > 0 ? (
+                          <SaveDetailPanel
+                            pageId={activeOperateResult.id}
+                            page={activePage}
+                            operateResult={activeOperateResult}
+                            initialParserType={parserType}
+                            faviconUrl={activePage.faviconUrl}
+                            onClose={() => setShowDetailPanel(false)}
+                            onDeleted={() => {
+                              setActiveOperateResult(null);
+                              setShowDetailPanel(false);
+                            }}
+                            onOperateResultChanged={(result) => setActiveOperateResult(result)}
+                          />
+                        ) : (
+                        <>
                         <div className={'flex items-center'}>
                           <TextField value={activePage.url} size={"small"} fullWidth={true} disabled={true}/>
                           {/* Only show action buttons when server is configured, connected, and not on Huntly site */}
-                          {storageSettings?.serverUrl && !isHuntlySite && !serverConnectionFailed && <div className={'grow shrink-0 pl-2'}>
+                          {storageSettings?.serverUrl && !isHuntlySite && !serverConnectionFailed && <div className={'grow shrink-0 pl-2 flex items-center'}>
                             {
                               activeOperateResult?.readLater ? (
                                 <Tooltip title={"Remove from read later"}>
@@ -725,6 +772,11 @@ const Popup = () => {
                                 )
                               )
                             }
+                            <Tooltip title={"Edit details"}>
+                              <IconButton onClick={openSaveDetailPanel}>
+                                <EditOutlinedIcon fontSize={"small"}/>
+                              </IconButton>
+                            </Tooltip>
                           </div>}
                         </div>
                         <Card className={`mainBorder mt-2 w-full flex`}>
@@ -792,7 +844,10 @@ const Popup = () => {
                             </Box>
                           </div>}
                         </Card>
+                        </>
+                        )}
 
+                        {!showDetailPanel && (
                         <div className={'mt-2 flex justify-center'}>
                           <AIToolbar
                             onShortcutClick={handleAIShortcutClick}
@@ -801,6 +856,7 @@ const Popup = () => {
                             hideHuntlyAI={serverConnectionFailed}
                           />
                         </div>
+                        )}
                       </div>
                     </div>
                   }

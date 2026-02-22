@@ -8,7 +8,6 @@ import {
   CircularProgress,
   Typography,
   Box,
-  IconButton,
 } from '@mui/material';
 import AutoAwesomeIcon from '@mui/icons-material/AutoAwesome';
 import SettingsIcon from '@mui/icons-material/Settings';
@@ -416,41 +415,41 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
         PaperProps={{ sx: { maxHeight: 400, minWidth: 180, zIndex: menuZIndex } }}
       >
         {!hasModels ? (
-          <MenuItem onClick={() => openSettings('ai-providers')}>
-            <SettingsIcon fontSize="small" sx={{ mr: 1 }} />
-            Configure AI Providers
-          </MenuItem>
+          [
+            <MenuItem key="configure" onClick={() => openSettings('ai-providers')}>
+              <SettingsIcon fontSize="small" sx={{ mr: 1 }} />
+              Configure AI Providers
+            </MenuItem>
+          ]
         ) : (
-          <>
-            {/* Huntly models */}
-            {huntlyModels.map(model => (
+          [
+            /* Huntly models */
+            ...huntlyModels.map(model => (
               <MenuItem
-                key={model.id}
+                key={`huntly-model-${model.id}`}
                 onClick={() => handleModelSelect(model)}
                 selected={selectedModel?.id === model.id}
               >
                 {model.name}
               </MenuItem>
-            ))}
-            {/* Other providers */}
-            {Object.entries(modelsByProvider).map(([providerName, providerModels], index) => (
-              <React.Fragment key={providerName}>
-                {(index > 0 || huntlyModels.length > 0) && <Divider />}
-                <ListSubheader sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
-                  {providerName}
-                </ListSubheader>
-                {providerModels.map(model => (
-                  <MenuItem
-                    key={model.id}
-                    onClick={() => handleModelSelect(model)}
-                    selected={selectedModel?.id === model.id}
-                  >
-                    {model.name}
-                  </MenuItem>
-                ))}
-              </React.Fragment>
-            ))}
-          </>
+            )),
+            /* Other providers */
+            ...Object.entries(modelsByProvider).flatMap(([providerName, providerModels], index) => [
+              ...((index > 0 || huntlyModels.length > 0) ? [<Divider key={`divider-${providerName}`} />] : []),
+              <ListSubheader key={`header-${providerName}`} sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
+                {providerName}
+              </ListSubheader>,
+              ...providerModels.map(model => (
+                <MenuItem
+                  key={`provider-model-${model.id}`}
+                  onClick={() => handleModelSelect(model)}
+                  selected={selectedModel?.id === model.id}
+                >
+                  {model.name}
+                </MenuItem>
+              )),
+            ]),
+          ]
         )}
       </Menu>
 
@@ -519,85 +518,85 @@ export const AIToolbar: React.FC<AIToolbarProps> = ({
         PaperProps={{ sx: { maxHeight: 400, minWidth: 200, zIndex: menuZIndex } }}
       >
         {loadingShortcuts ? (
-          <MenuItem disabled>
-            <CircularProgress size={16} sx={{ mr: 1 }} />
-            Loading...
-          </MenuItem>
+          [
+            <MenuItem key="loading" disabled>
+              <CircularProgress size={16} sx={{ mr: 1 }} />
+              Loading...
+            </MenuItem>
+          ]
         ) : !hasShortcuts ? (
-          <MenuItem onClick={() => openSettings('prompts')}>
-            <SettingsIcon fontSize="small" sx={{ mr: 1 }} />
-            {isHuntlyAISelected ? 'Configure Huntly Shortcuts' : 'Configure Prompts'}
-          </MenuItem>
+          [
+            <MenuItem key="configure" onClick={() => openSettings('prompts')}>
+              <SettingsIcon fontSize="small" sx={{ mr: 1 }} />
+              {isHuntlyAISelected ? 'Configure Huntly Shortcuts' : 'Configure Prompts'}
+            </MenuItem>
+          ]
         ) : (
-          <>
-            {/* Huntly AI selected - show only Huntly Shortcuts */}
-            {showHuntlyShortcuts && (
-              <>
-                <ListSubheader sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
-                  Huntly Shortcuts
-                </ListSubheader>
-                {huntlyShortcuts.map(shortcut => (
-                  <MenuItem
-                    key={`huntly-${shortcut.id}`}
-                    onClick={() => handleShortcutSelect({
-                      id: shortcut.id,
-                      name: shortcut.name,
-                      content: shortcut.prompt,
-                      type: 'huntly',
-                    })}
-                  >
-                    {shortcut.name}
-                  </MenuItem>
-                ))}
-              </>
-            )}
-            {/* Other models selected - show User & System Prompts */}
-            {showUserSystemPrompts && (
-              <>
-                {/* User Prompts */}
-                {userPrompts.length > 0 && (
-                  <ListSubheader sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
-                    Prompts
-                  </ListSubheader>
-                )}
-                {userPrompts.map(prompt => (
-                  <MenuItem
-                    key={`user-${prompt.id}`}
-                    disabled={!selectedModel}
-                    onClick={() => handleShortcutSelect({
-                      id: prompt.id,
-                      name: prompt.name,
-                      content: prompt.content,
-                      type: 'user',
-                    })}
-                  >
-                    {prompt.name}
-                  </MenuItem>
-                ))}
-                {/* System Prompts */}
-                {systemPrompts.length > 0 && userPrompts.length > 0 && <Divider />}
-                {systemPrompts.length > 0 && (
-                  <ListSubheader sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
-                    System Prompts
-                  </ListSubheader>
-                )}
-                {systemPrompts.map(prompt => (
-                  <MenuItem
-                    key={`system-${prompt.id}`}
-                    disabled={!selectedModel}
-                    onClick={() => handleShortcutSelect({
-                      id: prompt.id,
-                      name: prompt.name,
-                      content: prompt.content,
-                      type: 'system',
-                    })}
-                  >
-                    {prompt.name}
-                  </MenuItem>
-                ))}
-              </>
-            )}
-          </>
+          [
+            /* Huntly AI selected - show only Huntly Shortcuts */
+            ...(showHuntlyShortcuts ? [
+              <ListSubheader key="huntly-header" sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
+                Huntly Shortcuts
+              </ListSubheader>,
+              ...huntlyShortcuts.map(shortcut => (
+                <MenuItem
+                  key={`huntly-shortcut-${shortcut.id}`}
+                  onClick={() => handleShortcutSelect({
+                    id: shortcut.id,
+                    name: shortcut.name,
+                    content: shortcut.prompt,
+                    type: 'huntly',
+                  })}
+                >
+                  {shortcut.name}
+                </MenuItem>
+              )),
+            ] : []),
+            /* Other models selected - show User & System Prompts */
+            ...(showUserSystemPrompts ? [
+              /* User Prompts */
+              ...(userPrompts.length > 0 ? [
+                <ListSubheader key="prompts-header" sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
+                  Prompts
+                </ListSubheader>,
+              ] : []),
+              ...userPrompts.map(prompt => (
+                <MenuItem
+                  key={`user-prompt-${prompt.id}`}
+                  disabled={!selectedModel}
+                  onClick={() => handleShortcutSelect({
+                    id: prompt.id,
+                    name: prompt.name,
+                    content: prompt.content,
+                    type: 'user',
+                  })}
+                >
+                  {prompt.name}
+                </MenuItem>
+              )),
+              /* System Prompts */
+              ...(systemPrompts.length > 0 && userPrompts.length > 0 ? [<Divider key="system-divider" />] : []),
+              ...(systemPrompts.length > 0 ? [
+                <ListSubheader key="system-header" sx={{ lineHeight: '32px', bgcolor: 'background.paper' }}>
+                  System Prompts
+                </ListSubheader>,
+              ] : []),
+              ...systemPrompts.map(prompt => (
+                <MenuItem
+                  key={`system-prompt-${prompt.id}`}
+                  disabled={!selectedModel}
+                  onClick={() => handleShortcutSelect({
+                    id: prompt.id,
+                    name: prompt.name,
+                    content: prompt.content,
+                    type: 'system',
+                  })}
+                >
+                  {prompt.name}
+                </MenuItem>
+              )),
+            ] : []),
+          ]
         )}
       </Menu>
     </Box>
