@@ -1,0 +1,11 @@
+{
+  "extensionName": {
+    "message": "Huntly",
+    "description": "Extension name"
+  },
+  "extensionDescription": {
+    "message": "AI content manager with smart shortcuts for summary & translation. Auto-save web pages and tweets.",
+    "description": "Extension description shown in browser store (max 132 chars)"
+  }
+}
+
