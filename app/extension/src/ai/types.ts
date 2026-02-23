@@ -86,18 +86,17 @@ export const PROVIDER_REGISTRY: Record<ProviderType, ProviderMeta> = {
   deepseek: {
     type: 'deepseek',
     displayName: 'DeepSeek',
-    description: 'DeepSeek V3.2, R1, V3 and more',
+    description: 'DeepSeek V3.2 (chat and reasoner modes)',
     icon: 'deepseek',
     requiresApiKey: true,
     supportsCustomUrl: true,
     defaultBaseUrl: 'https://api.deepseek.com',
     defaultModels: [
-      { id: 'deepseek-v3.2' },
-      { id: 'deepseek-v3.1' },
-      { id: 'deepseek-r1-0528' },
-      { id: 'deepseek-v3-0324' },
-      { id: 'deepseek-reasoner' },
+      // DeepSeek official API only supports these two model IDs
+      // deepseek-chat: Non-thinking mode (V3.2)
+      // deepseek-reasoner: Thinking mode (V3.2 R1)
       { id: 'deepseek-chat' },
+      { id: 'deepseek-reasoner' },
     ],
   },
   groq: {
@@ -130,7 +129,7 @@ export const PROVIDER_REGISTRY: Record<ProviderType, ProviderMeta> = {
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     defaultModels: [
       { id: 'gemini-3-pro-preview' },
-      { id: 'gemini-3-flash' },
+      { id: 'gemini-3-flash-preview' },
       { id: 'gemini-2.5-pro' },
       { id: 'gemini-2.5-pro-preview' },
       { id: 'gemini-2.5-flash' },
