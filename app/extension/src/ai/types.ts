@@ -130,7 +130,7 @@ export const PROVIDER_REGISTRY: Record<ProviderType, ProviderMeta> = {
     defaultBaseUrl: 'https://generativelanguage.googleapis.com/v1beta',
     defaultModels: [
       { id: 'gemini-3-pro-preview' },
-      { id: 'gemini-3-flash' },
+      { id: 'gemini-3-flash-preview' },
       { id: 'gemini-2.5-pro' },
       { id: 'gemini-2.5-pro-preview' },
       { id: 'gemini-2.5-flash' },
