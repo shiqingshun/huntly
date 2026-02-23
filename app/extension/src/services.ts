@@ -1,6 +1,6 @@
-import {deleteData, getData, postData} from "./utils";
-import {log} from "./logger";
-import {PageOperateResult} from "./model/pageOperateResult";
+import { deleteData, getData, patchData, postData } from "./utils";
+import { log } from "./logger";
+import { PageOperateResult } from "./model/pageOperateResult";
 
 export async function getApiBaseUrl(): Promise<string> {
   const settings = await chrome.storage.sync.get(
@@ -53,6 +53,15 @@ export async function sendData(url, data) {
 export async function getPageOperateResult(id, url): Promise<string> {
   const baseUri = await getApiBaseUrl();
   return getData(baseUri, "page/pageOperateResult?id=" + (id || 0) + "&url=" + encodeURIComponent(url));
+}
+
+export async function getPageDetail(pageId: number): Promise<any> {
+  const baseUri = await getApiBaseUrl();
+  const resp = await getData(baseUri, "page/" + pageId);
+  if (resp) {
+    return JSON.parse(resp);
+  }
+  return null;
 }
 
 export async function autoSaveArticle(data): Promise<string> {
@@ -111,7 +120,7 @@ export async function removePageFromLibrary(pageId): Promise<PageOperateResult> 
   return parsePageOperateResult(resp);
 }
 
-function parsePageOperateResult(resp){
+function parsePageOperateResult(resp) {
   if (resp) {
     return JSON.parse(resp);
   }
@@ -123,6 +132,29 @@ export async function deletePage(pageId): Promise<void> {
   await deleteData(baseUri, "page/" + pageId);
 }
 
+export async function updatePageDetail(pageId: number, data: {
+  title?: string;
+  description?: string;
+  url?: string;
+  content?: string;
+}): Promise<PageOperateResult> {
+  const baseUri = await getApiBaseUrl();
+  const resp = await patchData(baseUri, "page/" + pageId + "/detail", data);
+  return parsePageOperateResult(resp);
+}
+
+export async function getCollectionTree(): Promise<any> {
+  const baseUri = await getApiBaseUrl();
+  const resp = await getData(baseUri, "collections/tree");
+  if (resp) return JSON.parse(resp);
+  return null;
+}
+
+export async function updatePageCollection(pageId: number, collectionId: number | null): Promise<void> {
+  const baseUri = await getApiBaseUrl();
+  await patchData(baseUri, "page/" + pageId + "/collection", { collectionId });
+}
+
 /**
  * Fetch enabled article shortcuts from the server
  * @param serverUrl The base URL of the server
@@ -132,7 +164,7 @@ export async function fetchEnabledShortcuts(): Promise<any[]> {
   try {
     const baseUri = await getApiBaseUrl();
     const response = await getData(baseUri, "article-shortcuts/enabled");
-    
+
     if (response) {
       return JSON.parse(response);
     }
@@ -140,5 +172,24 @@ export async function fetchEnabledShortcuts(): Promise<any[]> {
   } catch (error) {
     console.error("Error fetching shortcuts:", error);
     return [];
+  }
+}
+
+/**
+ * Fetch global setting from the server
+ * @returns Promise with the global setting object
+ */
+export async function fetchGlobalSetting(): Promise<any> {
+  try {
+    const baseUri = await getApiBaseUrl();
+    const response = await getData(baseUri, "setting/general/globalSetting");
+
+    if (response) {
+      return JSON.parse(response);
+    }
+    return null;
+  } catch (error) {
+    console.error("Error fetching global setting:", error);
+    return null;
   }
 }

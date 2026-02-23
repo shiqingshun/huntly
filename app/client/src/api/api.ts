@@ -1351,6 +1351,12 @@ export interface GlobalSetting {
     'autoSaveSiteBlacklists'?: string;
     /**
      * 
+     * @type {number}
+     * @memberof GlobalSetting
+     */
+    'autoSaveTweetMinLikes'?: number;
+    /**
+     * 
      * @type {boolean}
      * @memberof GlobalSetting
      */

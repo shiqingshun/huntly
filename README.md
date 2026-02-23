@@ -42,7 +42,7 @@ Self-hosted information hub with a powerful browser extension that captures, pro
 |---------|-------------|
 | 🤖 **AI Content Processing** | Leverage AI for summarization, translation, and intelligent content analysis with custom shortcuts |
 | 🔌 **MCP Server Integration** | Built-in Model Context Protocol (MCP) server enabling AI assistants (Claude, Cursor, etc.) to access your knowledge base, search content, and retrieve RSS feeds, tweets, GitHub stars, and highlights |
-| 📚 **Web Archiving** | Automatically save and archive web pages with content extraction using Mozilla Readability |
+| 📚 **Web Archiving** | Automatically save and archive web pages with content extraction using Defuddle and Mozilla Readability |
 | 📡 **RSS Feed Management** | Centralize all your RSS feeds with intelligent categorization, OPML import/export, and full-text search |
 | 🔍 **Powerful Full-Text Search** | Apache Lucene with IK Analyzer for Chinese text tokenization, boolean operators, and fuzzy search |
 | 🐦 **Social Media Integration** | Special handling for Twitter/X with automatic tweet thread reconstruction and media preservation |
@@ -54,7 +54,7 @@ Self-hosted information hub with a powerful browser extension that captures, pro
 
 - [x] Export all saved content to Markdown
 - [x] Flexible Organization: Collections
-- [ ] Enhanced extension with standalone AI processing (no server required)
+- [x] Enhanced extension with standalone AI processing (no server required)
 
 ## Screenshot
 
@@ -149,5 +149,6 @@ Thank you to all our sponsors for your generous support!
     <td align="center"><a href="https://www.jetbrains.com/">jetbrains</a></td>
     <td align="center"><a href="https://taresky.com/">TARESKY</a></td>
     <td align="center"><a href="https://x.com/Db9el25LULCBrcn">抹茶</a></td>
+    <td align="center"><a href="https://github.com/jtsang4">jtsang4</a></td>
   </tr>
 </table>

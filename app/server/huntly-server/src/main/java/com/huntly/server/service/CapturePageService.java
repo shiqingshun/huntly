@@ -75,19 +75,23 @@ public class CapturePageService extends BasePageService {
         }
         // if page is new or raw connector is null or from same connector
         boolean shouldUpdateContent = page.getId() == null || rawConnector == null || Objects.equals(page.getConnectorId(), capturePage.getConnectorId());
-        if (shouldUpdateContent) {
+        // Check if page is already saved to library - skip content updates for saved pages
+        boolean isAlreadySavedToLibrary = page.getLibrarySaveStatus() != null
+                && !Objects.equals(page.getLibrarySaveStatus(), LibrarySaveStatus.NOT_SAVED.getCode());
+        // Only update content data if page is not yet saved to library
+        if (shouldUpdateContent && !isAlreadySavedToLibrary) {
             page.setTitle(capturePage.getTitle());
+            page.setDescription(capturePage.getDescription());
+            page.setAuthor(capturePage.getAuthor());
             page.setContent(capturePage.getContent());
             page.setContentText(contentText);
             page.setUrl(capturePage.getUrl());
             page.setUrlWithoutHash(getUrlWithoutHash(capturePage.getUrl()));
-            page.setDescription(capturePage.getDescription());
             page.setThumbUrl(capturePage.getThumbUrl());
             if (StringUtils.isBlank(page.getThumbUrl()) && capturePage.getNeedFindThumbUrl() != null) {
                 String thumbUrl = HtmlUtils.findFirstPictureUrl(capturePage.getContent());
                 page.setThumbUrl(thumbUrl);
             }
-            page.setAuthor(capturePage.getAuthor());
             page.setLanguage(capturePage.getLanguage());
             page.setCategory(capturePage.getCategory());
             page.setPageJsonProperties(capturePage.getPageJsonProperties());
@@ -97,16 +101,19 @@ public class CapturePageService extends BasePageService {
                 page.setConnectorType(connector.get().getType());
             }
         }
-        if (source != null) {
+        if (source != null && !isAlreadySavedToLibrary) {
             page.setSourceId(source.getId());
         }
+        // Always update read status data for browser visits
         if (capturePage.getConnectorId() == null) {
             page.setMarkRead(true);
             page.setLastReadAt(Instant.now());
-            if (isSnippet) {
-                page.setContentType(ContentType.SNIPPET.getCode());
-            } else {
-                page.setContentType(ContentType.BROWSER_HISTORY.getCode());
+            if (!isAlreadySavedToLibrary) {
+                if (isSnippet) {
+                    page.setContentType(ContentType.SNIPPET.getCode());
+                } else {
+                    page.setContentType(ContentType.BROWSER_HISTORY.getCode());
+                }
             }
             page.setReadCount(ObjectUtils.defaultIfNull(page.getReadCount(), 0) + 1);
         }

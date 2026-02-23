@@ -42,7 +42,7 @@
 |---------|-------------|
 | 🤖 **AI 内容处理** | 利用 AI 进行摘要、翻译和智能内容分析，支持自定义快捷指令 |
 | 🔌 **MCP 服务器集成** | 内置 Model Context Protocol (MCP) 服务器，让 AI 助手（Claude、Cursor 等）可以访问您的知识库、搜索内容、获取 RSS 订阅、推文、GitHub stars 和高亮标注 |
-| 📚 **网页归档** | 使用 Mozilla Readability 自动保存和归档网页，提取正文内容 |
+| 📚 **网页归档** | 使用 Defuddle 和 Mozilla Readability 自动保存和归档网页，提取正文内容 |
 | 📡 **RSS 订阅管理** | 集中管理所有 RSS 订阅，支持智能分类、OPML 导入/导出和全文搜索 |
 | 🔍 **强大的全文搜索** | Apache Lucene 搜索引擎，IK 分词器支持中文分词，布尔运算符和模糊搜索 |
 | 🐦 **社交媒体集成** | 特殊处理 Twitter/X 内容，自动重建推文线程并保存媒体 |
@@ -54,7 +54,7 @@
 
 - [x] 将所有保存的内容导出为 Markdown
 - [x] 灵活的组织方式：收藏夹
-- [ ] 增强扩展功能，支持独立 AI 处理(无需服务器)
+- [x] 增强扩展功能，支持独立 AI 处理(无需服务器)
 
 ## 系统截图
 
@@ -149,5 +149,6 @@ sudo xattr -r -d com.apple.quarantine /YOUR_PATH/Huntly.app
     <td align="center"><a href="https://www.jetbrains.com/">jetbrains</a></td>
     <td align="center"><a href="https://taresky.com/">TARESKY</a></td>
     <td align="center"><a href="https://x.com/Db9el25LULCBrcn">抹茶</a></td>
+    <td align="center"><a href="https://github.com/jtsang4">jtsang4</a></td>
   </tr>
 </table>

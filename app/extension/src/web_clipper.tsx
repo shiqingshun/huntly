@@ -1,49 +1,97 @@
-import {isProbablyReaderable, Readability} from "@mozilla/readability";
+import {isProbablyReaderable} from "@mozilla/readability";
 import {findSmallestFaviconUrl, getBaseURI, isNotBlank, toAbsoluteURI} from "./utils";
 import {log} from "./logger";
-import {readSyncStorageSettings} from "./storage";
+import {ContentParserType, readSyncStorageSettings} from "./storage";
+import {parseDocument} from "./parser/contentParser";
 import React from "react";
-import Article from "./article";
+import {ShadowDomPreview} from "./components/ShadowDomPreview";
 import {createRoot} from "react-dom/client";
 
 log("web clipper script loaded");
 
-let root = null;
+let root: ReturnType<typeof createRoot> | null = null;
 // Store last snippet for current page (page-specific, not persisted)
 let lastSnippetPage: PageModel | null = null;
+// Cache the parser type setting
+let cachedParserType: ContentParserType = "readability";
+// Preview root element reference
+let previewRootEl: HTMLDivElement | null = null;
+
+// Load parser setting on script load
+readSyncStorageSettings().then((settings) => {
+  cachedParserType = settings.contentParser;
+});
+
+// Listen for storage changes to update cached parser type
+chrome.storage.onChanged.addListener((changes, areaName) => {
+  if (areaName === "sync" && changes.contentParser) {
+    cachedParserType = changes.contentParser.newValue;
+  }
+});
 
 chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendResponse) {
   if (msg.type === "parse_doc") {
-    const webClipper = new WebClipper()
+    // Use parser type from message if provided, otherwise use cached setting
+    const parserType = msg.payload?.parserType || cachedParserType;
+    const webClipper = new WebClipper(parserType);
     const page = webClipper.parseDoc(document.cloneNode(true) as Document);
-    sendResponse({page});
+    const isHuntlySite = webClipper.hasHuntlyMeta(document);
+    sendResponse({page, parserType, isHuntlySite});
     return;
   } else if (msg.type === 'shortcuts_preview') {
     let page = msg.payload?.page;
+    // Use parserType from message if provided, otherwise use cached setting
+    const parserType = msg.payload?.parserType || cachedParserType;
+    log('[Huntly] shortcuts_preview - received parserType:', msg.payload?.parserType, 'using:', parserType);
     if (!page) {
-      const webClipper = new WebClipper();
+      const webClipper = new WebClipper(parserType);
       page = webClipper.parseDoc(document.cloneNode(true) as Document);
     }
     const rootId = "huntly_preview_unique_root";
-    let elRoot = document.getElementById(rootId);
+    let elRoot = document.getElementById(rootId) as HTMLDivElement | null;
     if (!elRoot) {
-      const elPreview = document.createElement("div");
-      elPreview.setAttribute("id", rootId);
-      document.body.append(elPreview);
-      elRoot = elPreview;
+      elRoot = document.createElement("div");
+      elRoot.id = rootId;
+      document.body.append(elRoot);
     }
-    if (elRoot.getAttribute("data-preview") !== "1") {
-      elRoot.setAttribute("data-preview", "1");
-      if (!root) {
-        root = createRoot(elRoot);
-      } else {
-        root.unmount();
-        root = createRoot(elRoot);
+
+    // Save original scroll state - don't modify it, just track for cleanup
+    const originalBodyOverflow = document.body.style.overflow;
+    const originalHtmlOverflow = document.documentElement.style.overflow;
+
+    // Close handler to clean up the preview
+    const handleClose = () => {
+      if (previewRootEl) {
+        delete previewRootEl.dataset.preview;
       }
-      root.render(
-        <Article page={page} shortcuts={msg.payload?.shortcuts || []}/>
-      );
+      if (root) {
+        root.unmount();
+        root = null;
+      }
+      // Restore original scroll state
+      document.body.style.overflow = originalBodyOverflow;
+      document.documentElement.style.overflow = originalHtmlOverflow;
+    };
+
+    // Always re-render (unmount first if already mounted)
+    if (root) {
+      root.unmount();
     }
+
+    elRoot.dataset.preview = "1";
+    previewRootEl = elRoot;
+    root = createRoot(elRoot);
+    root.render(
+      <ShadowDomPreview
+        page={page}
+        initialParserType={parserType}
+        onClose={handleClose}
+        externalShortcuts={msg.payload?.externalShortcuts}
+        externalModels={msg.payload?.externalModels}
+        autoExecuteShortcut={msg.payload?.autoExecuteShortcut}
+        autoSelectedModel={msg.payload?.autoSelectedModel}
+      />
+    );
     return;
   } else if (msg.type === "get_selection") {
     const webClipper = new WebClipper();
@@ -124,12 +172,17 @@ chrome.runtime.onMessage.addListener(function (msg: Message, sender, sendRespons
 
 function timeoutSavePureRead() {
   setTimeout(() => {
-    const webClipper = new WebClipper()
+    const webClipper = new WebClipper(cachedParserType);
     webClipper.autoSavePureRead();
   }, 2000);
 }
 
 export class WebClipper {
+  private parserType: ContentParserType;
+
+  constructor(parserType: ContentParserType = "readability") {
+    this.parserType = parserType;
+  }
 
   autoSavePureRead() {
     if (!this.isMaybeReadable()) {
@@ -139,9 +192,9 @@ export class WebClipper {
     this.savePureRead(true);
   }
 
-  hasHuntlyMeta(doc) {
+  hasHuntlyMeta(doc): boolean {
     // exclude huntly web app
-    return doc.querySelector("meta[data-huntly='1']");
+    return !!doc.querySelector("meta[data-huntly='1']");
   }
 
   isMaybeReadable() {
@@ -167,13 +220,9 @@ export class WebClipper {
   }
 
   parseDoc(doc: Document): PageModel {
-    if (this.hasHuntlyMeta(doc)) {
-      return null;
-    }
-
     const baseURI = getBaseURI(doc);
     const documentURI = doc.documentURI;
-    const article = new Readability(doc, {debug: false}).parse();
+    const article = parseDocument(doc, this.parserType);
 
     const ogImage = doc.querySelector("meta[property='og:image']");
     let thumbUrl = ogImage ? ogImage.getAttribute("content") : null;

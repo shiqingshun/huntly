@@ -8,6 +8,7 @@ import org.apache.commons.lang3.StringUtils;
 import org.springframework.stereotype.Service;
 
 import java.util.Optional;
+import java.util.concurrent.atomic.AtomicReference;
 
 /**
  * @author lcomplete
@@ -15,6 +16,13 @@ import java.util.Optional;
 @Service
 public class GlobalSettingService {
     private final GlobalSettingRepository settingRepository;
+
+    /**
+     * Cache for autoSaveTweetMinLikes value to avoid frequent database reads.
+     * Uses AtomicReference to ensure thread-safety.
+     * null means cache is not initialized, Integer value is the cached setting.
+     */
+    private final AtomicReference<Integer> cachedAutoSaveTweetMinLikes = new AtomicReference<>(null);
 
     public GlobalSettingService(GlobalSettingRepository settingRepository) {
         this.settingRepository = settingRepository;
@@ -34,6 +42,38 @@ public class GlobalSettingService {
             setting.setArticleSummaryPrompt(getDefaultArticleSummaryPrompt());
         }
         return setting;
+    }
+
+    /**
+     * Get the autoSaveTweetMinLikes setting with caching for performance.
+     * This method is called frequently from TweetController, so it uses an in-memory cache
+     * to avoid repeated database queries.
+     *
+     * @return the minLikes value, returns 0 if null or not set
+     */
+    public int getAutoSaveTweetMinLikes() {
+        Integer cached = cachedAutoSaveTweetMinLikes.get();
+        if (cached != null) {
+            return cached;
+        }
+
+        // Double-check locking pattern using compareAndSet
+        GlobalSetting setting = settingRepository.findAll().stream().findFirst().orElse(null);
+        int minLikes = (setting != null && setting.getAutoSaveTweetMinLikes() != null)
+                ? setting.getAutoSaveTweetMinLikes()
+                : 0;
+
+        // Only set if still null (another thread may have set it)
+        cachedAutoSaveTweetMinLikes.compareAndSet(null, minLikes);
+        return minLikes;
+    }
+
+    /**
+     * Clear the cached autoSaveTweetMinLikes value.
+     * Should be called when the global setting is updated.
+     */
+    private void clearAutoSaveTweetMinLikesCache() {
+        cachedAutoSaveTweetMinLikes.set(null);
     }
 
     private String getDefaultArticleSummaryPrompt() {
@@ -82,7 +122,12 @@ public class GlobalSettingService {
             dbSetting.setOpenApiKey(globalSetting.getOpenApiKey());
         }
         dbSetting.setMcpToken(globalSetting.getMcpToken());
+        dbSetting.setAutoSaveTweetMinLikes(globalSetting.getAutoSaveTweetMinLikes());
         dbSetting.setUpdatedAt(globalSetting.getUpdatedAt());
+
+        // Clear cache when setting is updated
+        clearAutoSaveTweetMinLikesCache();
+
         return settingRepository.save(dbSetting);
     }
 }

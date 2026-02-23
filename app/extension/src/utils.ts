@@ -1,4 +1,7 @@
 export async function postData(baseUrl, url = '', data = {}) {
+  if (shouldUseBackgroundProxy()) {
+    return proxyHttpRequest('POST', baseUrl, url, data);
+  }
   const fullUrl = combineUrl(baseUrl, url);
   // Default options are marked with *
   const response = await fetch(fullUrl, {
@@ -12,6 +15,23 @@ export async function postData(baseUrl, url = '', data = {}) {
     body: JSON.stringify(data) // body data type must match "Content-Type" header
   });
   return response.text(); // parses JSON response into native JavaScript objects
+}
+
+export async function patchData(baseUrl, url = '', data = {}) {
+  if (shouldUseBackgroundProxy()) {
+    return proxyHttpRequest('PATCH', baseUrl, url, data);
+  }
+  const fullUrl = combineUrl(baseUrl, url);
+  const response = await fetch(fullUrl, {
+    method: 'PATCH',
+    cache: 'no-cache',
+    credentials: 'include',
+    headers: {
+      'Content-Type': 'application/json'
+    },
+    body: JSON.stringify(data)
+  });
+  return response.text();
 }
 
 export function combineUrl(baseUrl, url) {
@@ -33,6 +53,9 @@ export async function deleteData(baseUrl, url = '') {
 }
 
 export async function fetchData(method, baseUrl, url = '') {
+  if (shouldUseBackgroundProxy()) {
+    return proxyHttpRequest(method, baseUrl, url);
+  }
   const fullUrl = combineUrl(baseUrl, url);
   // Default options are marked with *
   const response = await fetch(fullUrl, {
@@ -44,6 +67,40 @@ export async function fetchData(method, baseUrl, url = '') {
     },
   });
   return response.text(); // parses JSON response into native JavaScript objects
+}
+
+function shouldUseBackgroundProxy(): boolean {
+  if (typeof window === 'undefined') {
+    return false;
+  }
+  return window.location.protocol !== 'chrome-extension:';
+}
+
+async function proxyHttpRequest(method: string, baseUrl: string, url: string, data?: object): Promise<string> {
+  return new Promise((resolve, reject) => {
+    chrome.runtime.sendMessage(
+      {
+        type: 'http_proxy',
+        payload: {
+          method,
+          baseUrl,
+          url,
+          data,
+        },
+      },
+      (response) => {
+        if (chrome.runtime.lastError) {
+          reject(new Error(chrome.runtime.lastError.message));
+          return;
+        }
+        if (!response?.success) {
+          reject(new Error(response?.error || 'Proxy request failed'));
+          return;
+        }
+        resolve(response?.data || '');
+      }
+    );
+  });
 }
 
 export function toAbsoluteURI(uri: string, baseURI: string, documentURI: string) {
