@@ -174,10 +174,15 @@ export async function testProviderConnection(
       maxTokens: 5,
     });
 
-    if (result.text) {
+    // Check if we got a valid response - result.text can be empty string for some models
+    // Also check finishReason to ensure the request actually completed
+    if (result.text !== undefined && result.text !== null) {
+      const responseText = result.text.trim();
       return {
         success: true,
-        message: `Connected! Response: ${result.text.trim()}`,
+        message: responseText
+          ? `Connected! Response: ${responseText}`
+          : `Connected! (Model responded with empty content, finishReason: ${result.finishReason || 'unknown'})`,
       };
     }
 
