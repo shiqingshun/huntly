@@ -1,4 +1,5 @@
 import React, { useCallback, useEffect, useState, useMemo } from 'react';
+import { useTranslation } from 'react-i18next';
 import "./PrimaryNavigation.css";
 import { Link, useLocation } from 'react-router-dom';
 import HomeOutlinedIcon from '@mui/icons-material/HomeOutlined';
@@ -75,6 +76,7 @@ interface NavItemConfig {
 
 // Mobile menu content for Library - fetches data only when mounted
 const MobileLibraryContent: React.FC<{ selectedNodeId: string }> = ({ selectedNodeId }) => {
+  const { t } = useTranslation('navigation');
   const dialogs = useCollectionDialogs();
 
   const { data: readLaterCountData } = useQuery(
@@ -95,7 +97,7 @@ const MobileLibraryContent: React.FC<{ selectedNodeId: string }> = ({ selectedNo
 
   return (
     <>
-      <div className="mobile-menu-header">Library</div>
+      <div className="mobile-menu-header">{t('library')}</div>
       <LibraryNavTree
         selectedNodeId={selectedNodeId}
         readLaterCount={readLaterCountData?.data}
@@ -156,6 +158,7 @@ const MobileLibraryContent: React.FC<{ selectedNodeId: string }> = ({ selectedNo
 
 // Mobile menu content for Feeds - fetches data only when mounted
 const MobileFeedsContent: React.FC<{ selectedNodeId: string }> = ({ selectedNodeId }) => {
+  const { t } = useTranslation('navigation');
   const { data: view } = useQuery(
     ['folder-connector-view'],
     async () => (await ConnectorControllerApiFactory().getFolderConnectorViewUsingGET()).data,
@@ -214,7 +217,7 @@ const MobileFeedsContent: React.FC<{ selectedNodeId: string }> = ({ selectedNode
 
   return (
     <>
-      <div className="mobile-menu-header">Feeds</div>
+      <div className="mobile-menu-header">{t('feeds')}</div>
       <NavTreeView
         treeItems={getFeedsTreeItems()}
         ariaLabel="feeds"
@@ -263,9 +266,10 @@ const MobileSourcesContent: React.FC<{ selectedNodeId: string }> = ({ selectedNo
 
 // Mobile menu content for Settings
 const MobileSettingsContent: React.FC<{ selectedNodeId: string }> = ({ selectedNodeId }) => {
+  const { t } = useTranslation('navigation');
   return (
     <>
-      <div className="mobile-menu-header">Settings</div>
+      <div className="mobile-menu-header">{t('settings')}</div>
       <SettingsNav selectedNodeId={selectedNodeId} />
     </>
   );
@@ -304,6 +308,7 @@ const getActiveNavFromPath = (
 };
 
 const PrimaryNavigation: React.FC = () => {
+  const { t } = useTranslation('navigation');
   const location = useLocation();
   const queryClient = useQueryClient();
   const { activeNav, setActiveNav } = useNavigation();
@@ -332,14 +337,14 @@ const PrimaryNavigation: React.FC = () => {
       id: 'home',
       icon: <HomeOutlinedIcon />,
       activeIcon: <HomeIcon />,
-      label: 'Home',
+      label: t('home'),
       path: '/',
     },
     {
       id: 'saved',
       icon: <LocalLibraryOutlinedIcon />,
       activeIcon: <LocalLibraryIcon />,
-      label: 'Library',
+      label: t('library'),
       path: '/list',
     },
     {
@@ -351,19 +356,19 @@ const PrimaryNavigation: React.FC = () => {
     {
       id: 'feeds',
       icon: <RssFeedIcon />,
-      label: 'Feeds',
+      label: t('feeds'),
       path: '/feeds',
     },
     {
       id: 'x',
       icon: <XIcon />,
-      label: 'X',
+      label: t('x'),
       path: '/twitter',
     },
     {
       id: 'github',
       icon: <GitHubIcon />,
-      label: 'Github',
+      label: t('github'),
       path: firstGithubConnector ? `/connector/${firstGithubConnector.id}` : '/github',
       condition: !!firstGithubConnector,
     },
@@ -440,7 +445,7 @@ const PrimaryNavigation: React.FC = () => {
               <SearchIcon />
             </div>
           </div>
-          <span className="primary-nav-item-label">Search</span>
+          <span className="primary-nav-item-label">{t('search')}</span>
         </Link>
       </div>
 
