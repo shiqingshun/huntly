@@ -1172,6 +1172,12 @@ export interface FeedsSetting {
     'crawlFullContent'?: boolean;
     /**
      * 
+     * @type {number}
+     * @memberof FeedsSetting
+     */
+    'defaultFetchIntervalMinutes'?: number;
+    /**
+     * 
      * @type {boolean}
      * @memberof FeedsSetting
      */
@@ -1367,6 +1373,12 @@ export interface GlobalSetting {
      * @memberof GlobalSetting
      */
     'coldDataKeepDays'?: number;
+    /**
+     * 
+     * @type {number}
+     * @memberof GlobalSetting
+     */
+    'defaultFeedFetchIntervalMinutes'?: number;
     /**
      * 
      * @type {string}
@@ -11309,5 +11321,3 @@ export class TweetControllerApi extends BaseAPI {
         return TweetControllerApiFp(this.configuration).trackReadUsingPOST(tweetId, options).then((request) => request(this.axios, this.basePath));
     }
 }
-
-
