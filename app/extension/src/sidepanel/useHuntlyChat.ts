@@ -12,6 +12,7 @@
 import { useCallback, useEffect, useMemo, useRef } from "react";
 import { Chat, type CreateUIMessage, useChat } from "@ai-sdk/react";
 import {
+  isDataUIPart,
   isReasoningUIPart,
   isTextUIPart,
   isToolUIPart,
@@ -20,23 +21,55 @@ import {
   type UIMessage,
   type UIMessageChunk,
 } from "ai";
-import type { ProviderOptions } from "@ai-sdk/provider-utils";
-import type { ChatMessage, ChatPart } from "./types";
+import {
+  formatAgentToolTitle,
+  getAgentToolMetadata,
+  parseAgentToolTitle,
+} from "./agentTools";
+import { HuntlyChatRequestError } from "./transportErrors";
+import { prepareMessagesForRetry } from "./utils/retryMessages";
+import type {
+  ChatErrorCode,
+  ChatMessage,
+  ChatPart,
+  ChatStatusPartKind,
+} from "./types";
 
 export const CHAT_MAX_OUTPUT_TOKENS = 8192;
-const ANTHROPIC_THINKING_BUDGET_TOKENS = 4000;
 
 const ATTACHED_PAGE_CONTEXT_RE =
   /^\s*<attached-page-context>\s*([\s\S]*?)\s*<\/attached-page-context>\s*$/i;
 const CONTENT_SECTION_RE = /(?:^|\n)\s*Content:\s*\n([\s\S]*)$/i;
 const STEP_PLACEHOLDER_ID = "pending-assistant";
 const INLINE_FILE_DATA_PART_TYPE = "data-huntly-inline-file";
+const HUNTLY_STATUS_DATA_PART_TYPE = "data-huntly-status";
 
 export type HuntlyUIMessageMetadata = {
   createdAt?: string;
 };
 
-export type HuntlyUIMessage = UIMessage<HuntlyUIMessageMetadata>;
+export type HuntlyStatusData = {
+  kind: ChatStatusPartKind;
+  label?: string;
+  message?: string;
+  details?: string;
+  summary?: string;
+  errorCode?: ChatErrorCode;
+  retryable?: boolean;
+  canCompact?: boolean;
+  compactedThroughMessageId?: string;
+  compactedMessageCount?: number;
+};
+
+export type HuntlyUIDataParts = {
+  "huntly-inline-file": InlineFileDataPart["data"];
+  "huntly-status": HuntlyStatusData;
+};
+
+export type HuntlyUIMessage = UIMessage<
+  HuntlyUIMessageMetadata,
+  HuntlyUIDataParts
+>;
 
 export type InlineFileDataPart = {
   type: typeof INLINE_FILE_DATA_PART_TYPE;
@@ -75,51 +108,10 @@ export interface UseHuntlyChatReturn {
   isRunning: boolean;
   sendMessage: (text: string, attachments?: ChatPart[]) => boolean;
   regenerate: (messageId?: string) => void;
+  retryLastRun: () => Promise<boolean>;
   cancelRun: () => void;
   setMessages: (messages: ChatMessage[]) => void;
   clearMessages: () => void;
-}
-
-// ---------------------------------------------------------------------------
-// Provider options for thinking/reasoning
-// ---------------------------------------------------------------------------
-
-export function buildBaseProviderOptions(
-  _provider?: string
-): ProviderOptions {
-  return {
-    openai: { systemMessageMode: "system" },
-  };
-}
-
-export function buildThinkingProviderOptions(
-  provider?: string
-): ProviderOptions {
-  const options = buildBaseProviderOptions(provider);
-
-  options.anthropic = {
-    thinking: {
-      type: "enabled",
-      budgetTokens: ANTHROPIC_THINKING_BUDGET_TOKENS,
-    },
-  };
-  options.deepseek = {
-    thinking: { type: "enabled" },
-  };
-  options.google = {
-    thinkingConfig: { thinkingLevel: "high", includeThoughts: true },
-  };
-  options.openai = {
-    ...options.openai,
-    reasoningEffort: "high",
-    reasoningSummary: "auto",
-    forceReasoning: true,
-  };
-  options.groq = {
-    reasoningEffort: "high",
-  };
-
-  return options;
 }
 
 // ---------------------------------------------------------------------------
@@ -154,6 +146,82 @@ function asRecord(value: unknown): Record<string, unknown> | undefined {
   }
 
   return undefined;
+}
+
+function isHuntlyStatusDataPart(
+  part: HuntlyUIMessage["parts"][number]
+): part is Extract<
+  HuntlyUIMessage["parts"][number],
+  { type: typeof HUNTLY_STATUS_DATA_PART_TYPE }
+> {
+  return part.type === HUNTLY_STATUS_DATA_PART_TYPE;
+}
+
+function statusChatPartToDataPart(part: ChatPart) {
+  if (part.type !== "status") {
+    return null;
+  }
+
+  return {
+    type: HUNTLY_STATUS_DATA_PART_TYPE,
+    id: part.id,
+    data: {
+      kind: part.statusKind || "error",
+      label: part.label,
+      message: part.message,
+      details: part.details,
+      summary: part.summary,
+      errorCode: part.errorCode,
+      retryable: part.retryable,
+      canCompact: part.canCompact,
+      compactedThroughMessageId: part.compactedThroughMessageId,
+      compactedMessageCount: part.compactedMessageCount,
+    },
+  } as const;
+}
+
+function statusDataPartToChatPart(
+  part: Extract<
+    HuntlyUIMessage["parts"][number],
+    { type: typeof HUNTLY_STATUS_DATA_PART_TYPE }
+  >
+): ChatPart {
+  return {
+    type: "status",
+    id: part.id,
+    statusKind: part.data.kind,
+    label: part.data.label,
+    message: part.data.message,
+    details: part.data.details,
+    summary: part.data.summary,
+    errorCode: part.data.errorCode,
+    retryable: part.data.retryable,
+    canCompact: part.data.canCompact,
+    compactedThroughMessageId: part.data.compactedThroughMessageId,
+    compactedMessageCount: part.data.compactedMessageCount,
+  };
+}
+
+function buildErrorStatusPart(error: Error): ChatPart {
+  if (error instanceof HuntlyChatRequestError) {
+    return {
+      type: "status",
+      statusKind: "error",
+      errorCode: error.code,
+      details: error.details || error.message,
+      retryable: error.retryable,
+      canCompact: error.canCompact,
+    };
+  }
+
+  return {
+    type: "status",
+    statusKind: "error",
+    errorCode: "unknown",
+    details: error.message || "Unknown error",
+    retryable: true,
+    canCompact: false,
+  };
 }
 
 function formatPageContextForModel(part: ChatPart): string {
@@ -216,6 +284,63 @@ function getToolInput(part: ChatPart): unknown {
   return {};
 }
 
+function findToolCallPart(
+  message: ChatMessage | undefined,
+  toolCallId: string | undefined
+): ChatPart | undefined {
+  if (!message || !toolCallId) {
+    return undefined;
+  }
+
+  return message.parts.find(
+    (part) => part.type === "tool-call" && part.toolCallId === toolCallId
+  );
+}
+
+function resolveToolTitle(part: ChatPart): string | undefined {
+  if (part.toolTitle?.trim()) {
+    return part.toolTitle.trim();
+  }
+
+  return formatAgentToolTitle(
+    part.toolSource === "mcp"
+      ? { source: "mcp", sourceLabel: part.toolSourceLabel }
+      : undefined
+  );
+}
+
+function resolveToolPartMetadata(options: {
+  toolName: string;
+  title?: string;
+  previousPart?: ChatPart;
+}): Pick<ChatPart, "toolTitle" | "toolSource" | "toolSourceLabel"> {
+  const normalizedTitle =
+    options.title?.trim() || options.previousPart?.toolTitle;
+  const titleMetadata = parseAgentToolTitle(normalizedTitle);
+  if (titleMetadata) {
+    return {
+      toolTitle: formatAgentToolTitle(titleMetadata),
+      toolSource: titleMetadata.source,
+      toolSourceLabel: titleMetadata.sourceLabel,
+    };
+  }
+
+  if (options.previousPart?.toolSource) {
+    return {
+      toolTitle: options.previousPart.toolTitle,
+      toolSource: options.previousPart.toolSource,
+      toolSourceLabel: options.previousPart.toolSourceLabel,
+    };
+  }
+
+  const metadata = getAgentToolMetadata(options.toolName);
+  return {
+    toolTitle: formatAgentToolTitle(metadata),
+    toolSource: metadata?.source,
+    toolSourceLabel: metadata?.sourceLabel,
+  };
+}
+
 function dataUrlToBase64(dataUrl: string): string {
   const commaIndex = dataUrl.indexOf(",");
   if (commaIndex === -1) {
@@ -259,7 +384,10 @@ export function replaceInlineFileParts(
   });
 }
 
-export function convertInlineFileDataPart(part: { type: string; data: unknown }) {
+export function convertInlineFileDataPart(part: {
+  type: string;
+  data: unknown;
+}) {
   if (part.type !== INLINE_FILE_DATA_PART_TYPE) {
     return undefined;
   }
@@ -274,6 +402,30 @@ export function convertInlineFileDataPart(part: { type: string; data: unknown })
     mediaType: payload.mediaType,
     filename: payload.filename,
     data: dataUrlToBase64(payload.dataUrl),
+  };
+}
+
+export function createAssistantStatusUIMessage(
+  data: HuntlyStatusData,
+  options?: {
+    id?: string;
+    createdAt?: string;
+  }
+): HuntlyUIMessage {
+  const createdAt = options?.createdAt || new Date().toISOString();
+  const messageId = options?.id || generateId();
+
+  return {
+    id: messageId,
+    role: "assistant",
+    parts: [
+      {
+        type: HUNTLY_STATUS_DATA_PART_TYPE,
+        id: messageId,
+        data,
+      },
+    ],
+    metadata: { createdAt },
   };
 }
 
@@ -345,10 +497,19 @@ function convertAssistantChatMessageToUIMessage(
         }
         break;
 
+      case "status": {
+        const dataPart = statusChatPartToDataPart(part);
+        if (dataPart) {
+          parts.push(dataPart);
+        }
+        break;
+      }
+
       case "tool-call": {
         if (!part.toolCallId || !part.toolName) break;
 
         const input = getToolInput(part);
+        const title = resolveToolTitle(part);
         if (part.result === undefined) {
           parts.push({
             type: "dynamic-tool",
@@ -356,6 +517,7 @@ function convertAssistantChatMessageToUIMessage(
             toolCallId: part.toolCallId,
             state: "input-available",
             input,
+            title,
           });
           break;
         }
@@ -368,6 +530,7 @@ function convertAssistantChatMessageToUIMessage(
             state: "output-error",
             input,
             errorText: String(part.result || "Tool execution failed."),
+            title,
           });
           break;
         }
@@ -379,6 +542,7 @@ function convertAssistantChatMessageToUIMessage(
           state: "output-available",
           input,
           output: part.result,
+          title,
         });
         break;
       }
@@ -449,6 +613,11 @@ function convertUserUIMessageToChatParts(message: HuntlyUIMessage): ChatPart[] {
         mediaType: part.mediaType,
         dataUrl: part.url,
       });
+      continue;
+    }
+
+    if (isDataUIPart(part) && isHuntlyStatusDataPart(part)) {
+      result.push(statusDataPartToChatPart(part));
     }
   }
 
@@ -456,7 +625,8 @@ function convertUserUIMessageToChatParts(message: HuntlyUIMessage): ChatPart[] {
 }
 
 function convertAssistantUIMessageToChatParts(
-  message: HuntlyUIMessage
+  message: HuntlyUIMessage,
+  previousMessage?: ChatMessage
 ): ChatPart[] {
   return message.parts.reduce<ChatPart[]>((result, part) => {
     if (part.type === "step-start") {
@@ -482,11 +652,23 @@ function convertAssistantUIMessageToChatParts(
       return result;
     }
 
+    if (isDataUIPart(part) && isHuntlyStatusDataPart(part)) {
+      result.push(statusDataPartToChatPart(part));
+      return result;
+    }
+
     if (isToolUIPart(part)) {
       const toolName =
         part.type === "dynamic-tool"
           ? part.toolName
           : part.type.slice("tool-".length);
+      const title = "title" in part ? part.title : undefined;
+      const previousPart = findToolCallPart(previousMessage, part.toolCallId);
+      const toolMetadata = resolveToolPartMetadata({
+        toolName,
+        title,
+        previousPart,
+      });
 
       let toolResult: unknown;
       let isError = false;
@@ -509,6 +691,9 @@ function convertAssistantUIMessageToChatParts(
         type: "tool-call",
         toolCallId: part.toolCallId,
         toolName,
+        toolTitle: toolMetadata.toolTitle,
+        toolSource: toolMetadata.toolSource,
+        toolSourceLabel: toolMetadata.toolSourceLabel,
         args: asRecord(part.input),
         argsText: safeStringify(part.input),
         result: toolResult,
@@ -536,33 +721,40 @@ function ensureErrorMessage(
 ): ChatMessage[] {
   if (!error) return messages;
 
-  const errorText = `Error: ${error.message || "Unknown error"}`;
-  if (messages.length === 0 || messages[messages.length - 1].role !== "assistant") {
+  const errorPart = buildErrorStatusPart(error);
+  if (
+    messages.length === 0 ||
+    messages[messages.length - 1].role !== "assistant"
+  ) {
     return [
       ...messages,
       {
         createdAt: new Date().toISOString(),
         id: `error-${generateId()}`,
         role: "assistant",
-        parts: [{ type: "text", text: errorText }],
+        parts: [errorPart],
         status: "error",
       },
     ];
   }
 
   const lastMessage = messages[messages.length - 1];
-  const hasErrorText = lastMessage.parts.some(
-    (part) => part.type === "text" && part.text === errorText
+  const hasEquivalentErrorPart = lastMessage.parts.some(
+    (part) =>
+      part.type === "status" &&
+      part.statusKind === "error" &&
+      part.errorCode === errorPart.errorCode &&
+      part.details === errorPart.details
   );
 
-  if (hasErrorText) return messages;
+  if (hasEquivalentErrorPart) return messages;
 
   return [
     ...messages.slice(0, -1),
     {
       ...lastMessage,
       status: "error",
-      parts: [...lastMessage.parts, { type: "text", text: errorText }],
+      parts: [...lastMessage.parts, errorPart],
     },
   ];
 }
@@ -590,37 +782,44 @@ export function convertUIMessagesToChatMessages(
     previousMessages.map((message) => [message.id, message])
   );
 
-  const chatMessages = messages.reduce<ChatMessage[]>((result, message, index) => {
-    if (message.role === "system") return result;
+  const chatMessages = messages.reduce<ChatMessage[]>(
+    (result, message, index) => {
+      if (message.role === "system") return result;
 
-    const isLast = index === messages.length - 1;
-    const isRunning = isLast && (status === "submitted" || status === "streaming");
-    const messageStatus: ChatMessage["status"] =
-      message.role === "assistant"
-        ? isRunning
-          ? "running"
-          : isLast && status === "error"
-          ? "error"
-          : "complete"
-        : "complete";
-
-    result.push({
-      createdAt: resolveMessageCreatedAt(
-        message,
-        previousMessagesById,
-        result[result.length - 1]?.createdAt
-      ),
-      id: message.id,
-      role: message.role,
-      parts:
+      const isLast = index === messages.length - 1;
+      const isRunning =
+        isLast && (status === "submitted" || status === "streaming");
+      const messageStatus: ChatMessage["status"] =
         message.role === "assistant"
-          ? convertAssistantUIMessageToChatParts(message)
-          : convertUserUIMessageToChatParts(message),
-      status: messageStatus,
-    });
+          ? isRunning
+            ? "running"
+            : isLast && status === "error"
+            ? "error"
+            : "complete"
+          : "complete";
 
-    return result;
-  }, []);
+      result.push({
+        createdAt: resolveMessageCreatedAt(
+          message,
+          previousMessagesById,
+          result[result.length - 1]?.createdAt
+        ),
+        id: message.id,
+        role: message.role,
+        parts:
+          message.role === "assistant"
+            ? convertAssistantUIMessageToChatParts(
+                message,
+                previousMessagesById.get(message.id)
+              )
+            : convertUserUIMessageToChatParts(message),
+        status: messageStatus,
+      });
+
+      return result;
+    },
+    []
+  );
 
   const placeholderMessage: ChatMessage = {
     createdAt: new Date().toISOString(),
@@ -632,11 +831,14 @@ export function convertUIMessagesToChatMessages(
 
   const withPlaceholder =
     (status === "submitted" || status === "streaming") &&
-    (chatMessages.length === 0 || chatMessages[chatMessages.length - 1].role !== "assistant")
+    (chatMessages.length === 0 ||
+      chatMessages[chatMessages.length - 1].role !== "assistant")
       ? [...chatMessages, placeholderMessage]
       : chatMessages;
 
-  return status === "error" ? ensureErrorMessage(withPlaceholder, error) : withPlaceholder;
+  return status === "error"
+    ? ensureErrorMessage(withPlaceholder, error)
+    : withPlaceholder;
 }
 
 // ---------------------------------------------------------------------------
@@ -672,6 +874,7 @@ export function useHuntlyChat(
     regenerate: regenerateUIMessage,
     stop,
     setMessages: setUIMessages,
+    clearError: clearUIError,
   } = useChat<HuntlyUIMessage>({ chat: activeChat });
 
   // Reset the "previous messages" memo when the underlying chat instance
@@ -738,6 +941,30 @@ export function useHuntlyChat(
     [chat, hasModel, isRunning, regenerateUIMessage, uiMessages.length]
   );
 
+  const retryLastRun = useCallback(async () => {
+    if (isRunning || !hasModel || !chat || uiMessages.length === 0) {
+      return false;
+    }
+
+    const retryMessages = prepareMessagesForRetry(uiMessages);
+    if (retryMessages.length === 0) {
+      return false;
+    }
+
+    clearUIError();
+    setUIMessages(retryMessages);
+    await sendUIMessage();
+    return true;
+  }, [
+    chat,
+    clearUIError,
+    hasModel,
+    isRunning,
+    sendUIMessage,
+    setUIMessages,
+    uiMessages,
+  ]);
+
   const cancelRun = useCallback(() => {
     void stop();
   }, [stop]);
@@ -761,6 +988,7 @@ export function useHuntlyChat(
     isRunning,
     sendMessage,
     regenerate,
+    retryLastRun,
     cancelRun,
     setMessages,
     clearMessages,

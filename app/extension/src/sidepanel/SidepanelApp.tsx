@@ -6,20 +6,15 @@ import {
   useState,
   type FC,
 } from "react";
-import { streamText, type ChatStatus } from "ai";
+import { type ChatStatus } from "ai";
 import { ChevronDown } from "lucide-react";
 
 import {
-  buildBaseProviderOptions,
-  buildThinkingProviderOptions,
   convertUIMessagesToChatMessages,
   useHuntlyChat,
   type HuntlyUIMessage,
 } from "./useHuntlyChat";
-import {
-  SessionChatPool,
-  type SessionChatConfig,
-} from "./chatPool";
+import { SessionChatPool, type SessionChatConfig } from "./chatPool";
 import type {
   ChatMessage,
   ChatPart,
@@ -53,6 +48,7 @@ import {
 import {
   getSidepanelSelectedModelId,
   getSidepanelThinkingModeEnabled,
+  readSyncStorageSettings,
   saveSidepanelSelectedModelId,
   saveSidepanelThinkingModeEnabled,
 } from "../storage";
@@ -70,11 +66,10 @@ import {
   createAttachmentPartFromDataUrl,
   createAttachmentPartFromUrl,
   createCurrentPageContextPart,
+  createPageContextPart,
   getDraggedImageSource,
-  getTabContext,
   onConfigChange,
   pageContextToTabContext,
-  type TabContext,
 } from "./utils/tabContext";
 import { generateId } from "./utils/ids";
 import {
@@ -83,18 +78,20 @@ import {
 } from "./utils/messageParts";
 import {
   DEFAULT_SESSION_TITLE,
-  deriveSessionTitle,
   getLatestMessage,
   sortSessionMetadataByActivity,
   getStoredLastMessageAt,
   getStoredLastMessageId,
 } from "./utils/sessions";
-import { useAutosizeTextArea } from "./utils/dom";
+import { isComposingEnterEvent, useAutosizeTextArea } from "./utils/dom";
+import { extractDroppedPayload, isImageDataUrl } from "./utils/dropPayload";
+import type { PendingSidepanelContextCommand } from "./utils/pendingContextCommand";
 import { useSessionPersistence } from "./hooks/useSessionPersistence";
-import {
-  isScrollPinnedToBottom,
-  shouldShowScrollToBottomButton,
-} from "./utils/scrollToBottom";
+import { useDragAndDropZone } from "./hooks/useDragAndDropZone";
+import { useScrollPinToBottom } from "./hooks/useScrollPinToBottom";
+import { useSidepanelContextMenu } from "./hooks/useSidepanelContextMenu";
+import { useTabContextWatcher } from "./hooks/useTabContextWatcher";
+import { useTitleGeneration } from "./hooks/useTitleGeneration";
 import { Composer } from "./components/Composer";
 import { HistoryDrawer } from "./components/HistoryDrawer";
 import { MessageList } from "./components/MessageList";
@@ -103,338 +100,46 @@ import {
   LoadingScreen,
   WelcomePane,
 } from "./components/Placeholders";
+import { useI18n } from "../i18n";
+
+type ChromeStorageChange = {
+  newValue?: unknown;
+};
+
+type ChromeApi = {
+  runtime?: {
+    getURL?: (path: string) => string;
+    sendMessage?: (message: unknown) => void;
+  };
+  storage?: {
+    onChanged?: {
+      addListener: (
+        handler: (
+          changes: Record<string, ChromeStorageChange>,
+          areaName: string
+        ) => void
+      ) => void;
+      removeListener: (
+        handler: (
+          changes: Record<string, ChromeStorageChange>,
+          areaName: string
+        ) => void
+      ) => void;
+    };
+  };
+  tabs?: {
+    create?: (options: { url: string }) => void;
+  };
+};
+
+function getChromeApi(): ChromeApi | undefined {
+  return (globalThis as typeof globalThis & { chrome?: ChromeApi }).chrome;
+}
 
 const SCROLL_PIN_THRESHOLD_PX = 96;
-const TITLE_MAX_LENGTH = 80;
-const DROPPABLE_STRING_TYPES = new Set([
-  "text/plain",
-  "text/uri-list",
-  "text/html",
-  "text/x-moz-url",
-  "text/x-moz-url-data",
-  "DownloadURL",
-]);
-
-function isImageDataUrl(value: string): boolean {
-  return /^data:image\//i.test(value.trim());
-}
-
-function isBlobUrl(value: string): boolean {
-  return /^blob:/i.test(value.trim());
-}
-
-function isHttpUrl(value: string): boolean {
-  return /^https?:\/\//i.test(value.trim());
-}
-
-function looksLikeRelativeUrl(value: string): boolean {
-  const trimmed = value.trim();
-  if (!trimmed || /\s/.test(trimmed)) return false;
-
-  return (
-    trimmed.startsWith("/") ||
-    trimmed.startsWith("./") ||
-    trimmed.startsWith("../") ||
-    trimmed.includes("/") ||
-    /\.[a-z0-9]{2,8}(?:[?#].*)?$/i.test(trimmed)
-  );
-}
-
-function normalizeDroppedSource(
-  value: string,
-  baseUrl?: string | null
-): string | null {
-  const trimmed = value.trim();
-  if (!trimmed) return null;
-
-  if (isHttpUrl(trimmed) || isImageDataUrl(trimmed) || isBlobUrl(trimmed)) {
-    return trimmed;
-  }
-
-  if (trimmed.startsWith("//")) {
-    try {
-      return new URL(trimmed, baseUrl || "https://example.com").toString();
-    } catch {
-      return null;
-    }
-  }
-
-  if (!baseUrl) return null;
-  if (!looksLikeRelativeUrl(trimmed)) return null;
-
-  try {
-    const resolved = new URL(trimmed, baseUrl).toString();
-    if (isHttpUrl(resolved) || isImageDataUrl(resolved) || isBlobUrl(resolved)) {
-      return resolved;
-    }
-  } catch {
-    return null;
-  }
-
-  return null;
-}
-
-function collectUrlsFromSrcset(value: string, baseUrl?: string | null): string[] {
-  return value
-    .split(",")
-    .map((candidate) => candidate.trim().split(/\s+/)[0] || "")
-    .map((candidate) => normalizeDroppedSource(candidate, baseUrl))
-    .filter((candidate): candidate is string => Boolean(candidate));
-}
-
-function collectUrlsFromText(value: string, baseUrl?: string | null): string[] {
-  return value
-    .split(/\r?\n/)
-    .map((entry) => entry.trim())
-    .filter(Boolean)
-    .map((entry) => normalizeDroppedSource(entry, baseUrl))
-    .filter((entry): entry is string => Boolean(entry));
-}
-
-function collectUrlsFromDownloadUrl(
-  value: string,
-  baseUrl?: string | null
-): string[] {
-  const match = value.match(/^[^:]+:[^:]*:(.+)$/);
-  if (!match?.[1]) return [];
-
-  const normalized = normalizeDroppedSource(match[1], baseUrl);
-  return normalized ? [normalized] : [];
-}
-
-function collectImageSourcesFromHtml(
-  html: string,
-  baseUrl?: string | null
-): string[] {
-  const sources = new Set<string>();
-
-  try {
-    const doc = new DOMParser().parseFromString(html, "text/html");
-    const nodes = doc.querySelectorAll("img, source");
-
-    nodes.forEach((node) => {
-      const src = node.getAttribute("src");
-      const srcset = node.getAttribute("srcset");
-
-      const normalizedSrc = src ? normalizeDroppedSource(src, baseUrl) : null;
-      if (normalizedSrc) {
-        sources.add(normalizedSrc);
-      }
-
-      if (srcset) {
-        collectUrlsFromSrcset(srcset, baseUrl).forEach((value) =>
-          sources.add(value)
-        );
-      }
-    });
-  } catch {
-    // Ignore malformed HTML payloads from drag-and-drop.
-  }
-
-  return Array.from(sources);
-}
-
-function readDragItemAsString(item: DataTransferItem): Promise<string> {
-  return new Promise((resolve) => {
-    item.getAsString((value) => resolve(value || ""));
-  });
-}
-
-function dedupeFiles(files: File[]): File[] {
-  const seen = new Set<string>();
-  return files.filter((file) => {
-    const key = [file.name, file.size, file.type, file.lastModified].join(":");
-    if (seen.has(key)) return false;
-    seen.add(key);
-    return true;
-  });
-}
-
-function isComposingEnterEvent(
-  event: React.KeyboardEvent<HTMLTextAreaElement>
-): boolean {
-  if (event.key !== "Enter") return false;
-
-  const nativeEvent = event.nativeEvent as KeyboardEvent & {
-    isComposing?: boolean;
-    keyCode?: number;
-  };
-
-  return (
-    nativeEvent.isComposing === true ||
-    nativeEvent.keyCode === 229
-  );
-}
-
-async function extractDroppedPayload(
-  dataTransfer: DataTransfer,
-  baseUrl?: string | null
-): Promise<{
-  files: File[];
-  sources: string[];
-}> {
-  const items = Array.from(dataTransfer.items || []);
-  const filesFromItems = dedupeFiles(
-    items
-      .filter((item) => item.kind === "file")
-      .map((item) => item.getAsFile())
-      .filter((file): file is File => Boolean(file))
-  );
-
-  const files =
-    filesFromItems.length > 0
-      ? filesFromItems
-      : dedupeFiles(Array.from(dataTransfer.files || []));
-
-  const stringItems = await Promise.all(
-    items
-      .filter(
-        (item) =>
-          item.kind === "string" && DROPPABLE_STRING_TYPES.has(item.type)
-      )
-      .map(async (item) => ({
-        type: item.type,
-        value: (await readDragItemAsString(item)).trim(),
-      }))
-  );
-
-  const sources = new Set<string>();
-
-  for (const item of stringItems) {
-    if (!item.value) continue;
-
-    if (item.type === "text/html") {
-      collectImageSourcesFromHtml(item.value, baseUrl).forEach((value) =>
-        sources.add(value)
-      );
-      continue;
-    }
-
-    if (item.type === "DownloadURL") {
-      collectUrlsFromDownloadUrl(item.value, baseUrl).forEach((value) =>
-        sources.add(value)
-      );
-      continue;
-    }
-
-    collectUrlsFromText(item.value, baseUrl).forEach((value) =>
-      sources.add(value)
-    );
-  }
-
-  collectUrlsFromText(dataTransfer.getData("text/uri-list"), baseUrl).forEach(
-    (value) => sources.add(value)
-  );
-  collectImageSourcesFromHtml(dataTransfer.getData("text/html"), baseUrl).forEach(
-    (value) => sources.add(value)
-  );
-  collectUrlsFromText(dataTransfer.getData("text/plain"), baseUrl).forEach(
-    (value) => sources.add(value)
-  );
-  collectUrlsFromText(dataTransfer.getData("text/x-moz-url"), baseUrl).forEach(
-    (value) => sources.add(value)
-  );
-  collectUrlsFromDownloadUrl(dataTransfer.getData("DownloadURL"), baseUrl).forEach(
-    (value) => sources.add(value)
-  );
-
-  return {
-    files,
-    sources: Array.from(sources),
-  };
-}
-
-function summarizeFirstUserMessageForTitle(parts: ChatPart[]): string {
-  const segments: string[] = [];
-  const text = getDisplayMessageText(parts).replace(/\s+/g, " ").trim();
-
-  if (text) {
-    segments.push(text);
-  }
-
-  for (const part of parts) {
-    if (part.type === "page-context") {
-      const label = (part.articleTitle || part.title || part.url || "").trim();
-      if (label) {
-        segments.push(`Attached page: ${label}`);
-      }
-      continue;
-    }
-
-    if (part.type === "file") {
-      const label = (part.filename || part.mediaType || "attachment").trim();
-      if (label) {
-        segments.push(`Attachment: ${label}`);
-      }
-    }
-  }
-
-  return segments.join(" | ");
-}
-
-function normalizeGeneratedSessionTitle(value: string): string | null {
-  const firstLine = value
-    .split(/\r?\n/)
-    .map((line) => line.trim())
-    .find(Boolean);
-
-  if (!firstLine) return null;
-
-  const normalized = firstLine
-    .replace(/^[#>*\-\d.\s]*(?:title|conversation title)\s*:\s*/i, "")
-    .replace(/^["'`“”‘’]+|["'`“”‘’]+$/g, "")
-    .replace(/\s+/g, " ")
-    .replace(/[.。]+$/, "")
-    .trim();
-
-  if (!normalized || normalized === DEFAULT_SESSION_TITLE) {
-    return null;
-  }
-
-  return normalized.length <= TITLE_MAX_LENGTH
-    ? normalized
-    : `${normalized.slice(0, TITLE_MAX_LENGTH - 1).trimEnd()}…`;
-}
-
-async function generateSessionTitleFromFirstMessage(
-  message: ChatMessage,
-  modelInfo: HuntlyModelInfo,
-  systemPrompt: string,
-  thinkingEnabled = false,
-  abortSignal?: AbortSignal
-): Promise<string | null> {
-  const source = summarizeFirstUserMessageForTitle(message.parts);
-  if (!source) {
-    console.warn("[SidepanelApp] Title generation skipped: empty first user message");
-    return null;
-  }
-
-  let streamError: unknown = null;
-  const result = streamText({
-    model: modelInfo.model as any,
-    system: systemPrompt,
-    prompt:
-      `First user message:\n\n${source}\n\n` +
-      "Generate one short conversation title based only on this first user message. Output only the title.",
-    maxOutputTokens: 128,
-    abortSignal,
-    providerOptions: thinkingEnabled
-      ? buildThinkingProviderOptions(modelInfo.provider)
-      : buildBaseProviderOptions(modelInfo.provider),
-    onError({ error }) {
-      streamError = error;
-    },
-  });
-
-  const generatedText = await result.text;
-  if (streamError) {
-    throw streamError;
-  }
-
-  return normalizeGeneratedSessionTitle(generatedText);
-}
 
 export const SidepanelApp: FC = () => {
+  const { t } = useI18n();
   const [models, setModels] = useState<HuntlyModelInfo[]>([]);
   const [currentModelId, setCurrentModelId] = useState<string | null>(null);
   const [slashPrompts, setSlashPrompts] = useState<SlashPrompt[]>([]);
@@ -443,13 +148,18 @@ export const SidepanelApp: FC = () => {
   const [historyOpen, setHistoryOpen] = useState(false);
   const [showArchived, setShowArchived] = useState(false);
   const [thinkingMode, setThinkingMode] = useState(false);
-  const [tabContext, setTabContext] = useState<TabContext | null>(null);
+  const [huntlyMcpEnabled, setHuntlyMcpEnabled] = useState(false);
+  const [statusAction, setStatusAction] = useState<"retry" | "compact" | null>(
+    null
+  );
   const [attachedPageContext, setAttachedPageContext] =
     useState<ChatPart | null>(null);
   const [contextLoading, setContextLoading] = useState(false);
   const [contextError, setContextError] = useState<string | null>(null);
   const [inputText, setInputText] = useState("");
-  const [editingUserMessageId, setEditingUserMessageId] = useState<string | null>(null);
+  const [editingUserMessageId, setEditingUserMessageId] = useState<
+    string | null
+  >(null);
   const [editingUserMessageText, setEditingUserMessageText] = useState("");
   const [attachments, setAttachments] = useState<ChatPart[]>([]);
   const [attachmentProcessingLabel, setAttachmentProcessingLabel] = useState<
@@ -471,20 +181,16 @@ export const SidepanelApp: FC = () => {
   );
   const currentSessionIdRef = useRef<string | null>(null);
   const configRef = useRef<SessionChatConfig | null>(null);
-  const titleGenerationAbortsRef = useRef<Map<string, AbortController>>(
-    new Map()
-  );
-  const titleGenerationKeysRef = useRef<Map<string, string>>(new Map());
   const titleGenerationSystemPromptRef = useRef(
     buildSidepanelTitleGenerationSystemPrompt("English")
   );
   const inputRef = useRef<HTMLTextAreaElement>(null);
-  const messageScrollRef = useRef<HTMLDivElement>(null);
-  const messagesEndRef = useRef<HTMLDivElement>(null);
-  const messageScrollPinnedRef = useRef(true);
-  const [showScrollToBottom, setShowScrollToBottom] = useState(false);
 
   const persistence = useSessionPersistence();
+  const tabContext = useTabContextWatcher({
+    paused: Boolean(attachedPageContext),
+    onRefreshed: () => setContextError(null),
+  });
 
   useAutosizeTextArea(inputRef, inputText);
 
@@ -524,51 +230,17 @@ export const SidepanelApp: FC = () => {
         messages: HuntlyUIMessage[];
         status: ChatStatus;
         error: Error | undefined;
+        rollingSummary?: SessionData["rollingSummary"];
       }
     ) => void
   >(() => {});
-  const poolRef = useRef<SessionChatPool | null>(null);
-  if (!poolRef.current) {
-    poolRef.current = new SessionChatPool(
-      () => configRef.current,
-      (sessionId, snapshot) =>
-        poolEventHandlerRef.current(sessionId, snapshot)
-    );
-  }
-
-  const cancelTitleGenerationFor = useCallback((sessionId: string) => {
-    titleGenerationAbortsRef.current.get(sessionId)?.abort();
-    titleGenerationAbortsRef.current.delete(sessionId);
-    titleGenerationKeysRef.current.delete(sessionId);
-  }, []);
-
-  const cancelAllTitleGenerations = useCallback(() => {
-    for (const controller of titleGenerationAbortsRef.current.values()) {
-      controller.abort();
-    }
-    titleGenerationAbortsRef.current.clear();
-    titleGenerationKeysRef.current.clear();
-  }, []);
-
-  /**
-   * Drop a pool entry that was never used (no persisted messages, idle status).
-   * Prevents accumulating empty draft Chats when the user keeps clicking
-   * "New chat" without sending anything.
-   */
-  const pruneEmptyDraft = useCallback(
-    (sessionId: string | null) => {
-      if (!sessionId) return;
-      const pool = poolRef.current;
-      if (!pool) return;
-      if (sessionsDataRef.current.has(sessionId)) return;
-      if (pool.isRunning(sessionId)) return;
-      const chat = pool.get(sessionId);
-      if (chat && chat.messages.length > 0) return;
-      pool.remove(sessionId);
-      previousSessionMessagesRef.current.delete(sessionId);
-      cancelTitleGenerationFor(sessionId);
-    },
-    [cancelTitleGenerationFor]
+  const [pool] = useState(
+    () =>
+      new SessionChatPool(
+        () => configRef.current,
+        (sessionId, snapshot) =>
+          poolEventHandlerRef.current(sessionId, snapshot)
+      )
   );
 
   const syncSessionSnapshot = useCallback(
@@ -596,149 +268,30 @@ export const SidepanelApp: FC = () => {
     [persistence]
   );
 
-  const maybeGenerateSessionTitle = useCallback(
-    (session: SessionData, chatMessages: ChatMessage[]) => {
-      const currentModel = currentModelRef.current;
-      if (
-        !currentModel ||
-        chatMessages.length === 0 ||
-        session.titleGenerationStatus === "generated"
-      ) {
-        return;
-      }
+  const titleGeneration = useTitleGeneration({
+    getCurrentModel: () => currentModelRef.current,
+    getTitleSystemPrompt: () => titleGenerationSystemPromptRef.current,
+    getSessionData: (id) => sessionsDataRef.current.get(id),
+    syncSessionSnapshot,
+  });
 
-      const firstUserMessage = chatMessages.find(
-        (message) => message.role === "user"
-      );
-      if (!firstUserMessage) {
-        return;
-      }
-
-      const sessionId = session.id;
-      const requestKey = `${sessionId}:${firstUserMessage.id || "first-user"}`;
-      if (titleGenerationKeysRef.current.get(sessionId) === requestKey) {
-        return;
-      }
-
-      // Cancel any previous attempt for this session (different first message
-      // — e.g. edited-first-message path) and start fresh. Do NOT touch other
-      // sessions' title generation runs, so parallel conversations can each
-      // generate their own title independently.
-      cancelTitleGenerationFor(sessionId);
-
-      const controller = new AbortController();
-      titleGenerationAbortsRef.current.set(sessionId, controller);
-      titleGenerationKeysRef.current.set(sessionId, requestKey);
-
-      const applyTitleResult = (
-        title: string | null,
-        reason: "llm" | "fallback"
-      ) => {
-        const currentSession = sessionsDataRef.current.get(sessionId);
-        if (!currentSession) {
-          return;
-        }
-
-        const currentFirstUserMessage = currentSession.messages.find(
-          (message) => message.role === "user"
-        );
-        const activeRequestKey = currentFirstUserMessage
-          ? `${currentSession.id}:${currentFirstUserMessage.id || "first-user"}`
-          : null;
-
-        if (activeRequestKey !== requestKey) {
-          return;
-        }
-
-        const resolvedTitle =
-          title ||
-          deriveSessionTitle(currentSession.messages, DEFAULT_SESSION_TITLE);
-        if (!resolvedTitle || resolvedTitle === DEFAULT_SESSION_TITLE) {
-          syncSessionSnapshot(
-            {
-              ...currentSession,
-              titleGenerationStatus: "failed",
-              titleGeneratedAt: undefined,
-            },
-            true
-          );
-          return;
-        }
-
-        syncSessionSnapshot(
-          {
-            ...currentSession,
-            title: resolvedTitle,
-            titleGenerationStatus: "generated",
-            titleGeneratedAt: new Date().toISOString(),
-          },
-          true
-        );
-        console.debug("[SidepanelApp] Title generation: applying title", {
-          sessionId,
-          reason,
-          title: resolvedTitle,
-        });
-      };
-
-      void (async () => {
-        let generatedTitle: string | null = null;
-
-        try {
-          generatedTitle = await generateSessionTitleFromFirstMessage(
-            firstUserMessage,
-            currentModel,
-            titleGenerationSystemPromptRef.current,
-            false,
-            controller.signal
-          );
-        } catch (error) {
-          if (!controller.signal.aborted) {
-            console.error(
-              "[SidepanelApp] Title generation failed without thinking",
-              error
-            );
-          }
-        }
-
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        if (!generatedTitle) {
-          try {
-            generatedTitle = await generateSessionTitleFromFirstMessage(
-              firstUserMessage,
-              currentModel,
-              titleGenerationSystemPromptRef.current,
-              true,
-              controller.signal
-            );
-          } catch (error) {
-            if (!controller.signal.aborted) {
-              console.error(
-                "[SidepanelApp] Title generation retry failed with thinking",
-                error
-              );
-            }
-          }
-        }
-
-        if (controller.signal.aborted) {
-          return;
-        }
-
-        applyTitleResult(generatedTitle, generatedTitle ? "llm" : "fallback");
-      })().finally(() => {
-        if (titleGenerationAbortsRef.current.get(sessionId) === controller) {
-          titleGenerationAbortsRef.current.delete(sessionId);
-        }
-        if (titleGenerationKeysRef.current.get(sessionId) === requestKey) {
-          titleGenerationKeysRef.current.delete(sessionId);
-        }
-      });
+  /**
+   * Drop a pool entry that was never used (no persisted messages, idle status).
+   * Prevents accumulating empty draft Chats when the user keeps clicking
+   * "New chat" without sending anything.
+   */
+  const pruneEmptyDraft = useCallback(
+    (sessionId: string | null) => {
+      if (!sessionId) return;
+      if (sessionsDataRef.current.has(sessionId)) return;
+      if (pool.isRunning(sessionId)) return;
+      const chat = pool.get(sessionId);
+      if (chat && chat.messages.length > 0) return;
+      pool.remove(sessionId);
+      previousSessionMessagesRef.current.delete(sessionId);
+      titleGeneration.cancelFor(sessionId);
     },
-    [cancelTitleGenerationFor, syncSessionSnapshot]
+    [pool, titleGeneration]
   );
 
   const refreshSessions = useCallback(async () => {
@@ -779,24 +332,25 @@ export const SidepanelApp: FC = () => {
   }, [refreshSessions]);
 
   const handleSessionMessagesChange = useCallback(
-    (sessionId: string, chatMessages: ChatMessage[]) => {
+    (
+      sessionId: string,
+      chatMessages: ChatMessage[],
+      rollingSummary?: SessionData["rollingSummary"]
+    ) => {
       // Empty drafts (no messages yet) are kept entirely in-memory and never
       // persisted. They are only created on the user's first send below.
-      const existing = sessionsDataRef.current.get(sessionId);
-      if (chatMessages.length === 0 && !existing) {
-        return;
-      }
       if (chatMessages.length === 0) {
         return;
       }
 
+      const existing = sessionsDataRef.current.get(sessionId);
       let session = existing;
       const isNewSession = !session;
       if (!session) {
-        const created = createEmptySession(
-          currentModelRef.current ? getModelKey(currentModelRef.current) : null
+        session = createEmptySession(
+          currentModelRef.current ? getModelKey(currentModelRef.current) : null,
+          sessionId
         );
-        session = { ...created, id: sessionId };
         sessionsDataRef.current.set(sessionId, session);
       }
 
@@ -807,7 +361,6 @@ export const SidepanelApp: FC = () => {
           ? session.messages[session.messages.length - 1]
           : null;
       const prevLatestId = getStoredLastMessageId(session);
-      const prevLastMessageAt = getStoredLastMessageAt(session);
       const isStreaming = latestMessage?.status === "running";
       const latestChanged =
         isNewSession ||
@@ -816,39 +369,68 @@ export const SidepanelApp: FC = () => {
         latestMessage?.status !== prevLastMessage?.status ||
         isStreaming;
 
-      if (!latestChanged) {
+      const summaryChanged =
+        session.rollingSummary?.text !== rollingSummary?.text ||
+        session.rollingSummary?.summarizedThroughMessageId !==
+          rollingSummary?.summarizedThroughMessageId ||
+        session.rollingSummary?.version !== rollingSummary?.version;
+
+      if (!latestChanged && !summaryChanged) {
         return;
       }
+
+      // Only the active session reflects the user-selected model/thinking
+      // switch into its persisted record; background sessions keep whatever
+      // they were configured with at send time so switching the UI model
+      // does not silently rewrite history.
+      const isActiveSession = sessionId === currentSessionIdRef.current;
+      const activeModelKey = currentModelRef.current
+        ? getModelKey(currentModelRef.current)
+        : null;
+
+      const titleGenerationStatus =
+        session.titleGenerationStatus === "generated" ||
+        session.titleGenerationStatus === "failed"
+          ? session.titleGenerationStatus
+          : "idle";
 
       const updated: SessionData = {
         ...session,
         title: (session.title || "").trim() || DEFAULT_SESSION_TITLE,
-        titleGenerationStatus:
-          session.titleGenerationStatus === "generated"
-            ? "generated"
-            : "idle",
+        titleGenerationStatus,
         titleGeneratedAt:
-          session.titleGenerationStatus === "generated"
+          titleGenerationStatus === "generated"
             ? session.titleGeneratedAt
             : undefined,
-        currentModelId: currentModelRef.current
-          ? getModelKey(currentModelRef.current)
-          : null,
-        thinkingEnabled: thinkingModeRef.current,
+        currentModelId: isActiveSession
+          ? activeModelKey
+          : session.currentModelId,
+        thinkingEnabled: isActiveSession
+          ? thinkingModeRef.current
+          : session.thinkingEnabled,
+        rollingSummary,
         messages: chatMessages,
         updatedAt: now,
-        lastMessageAt: now,
-        lastMessageId: latestMessage?.id || prevLatestId,
+        lastMessageAt: latestChanged ? now : session.lastMessageAt,
+        lastMessageId: latestChanged
+          ? latestMessage?.id || prevLatestId
+          : prevLatestId,
         lastOpenedAt:
-          currentSessionIdRef.current === session.id
+          latestChanged && isActiveSession
             ? now
             : session.lastOpenedAt || session.updatedAt || session.createdAt,
       };
 
-      syncSessionSnapshot(updated, latestMessage?.status !== "running");
-      maybeGenerateSessionTitle(updated, chatMessages);
+      syncSessionSnapshot(updated, !isStreaming);
+
+      // Title generation is off the hot path: start as soon as the first user
+      // message is present instead of waiting for the assistant stream to end.
+      // The hook dedupes repeated streaming snapshots for the same first turn.
+      if (latestChanged) {
+        titleGeneration.maybeGenerate(updated, chatMessages);
+      }
     },
-    [maybeGenerateSessionTitle, syncSessionSnapshot]
+    [syncSessionSnapshot, titleGeneration]
   );
 
   // Pool event handler converts the AI SDK UI snapshot into our local
@@ -856,8 +438,7 @@ export const SidepanelApp: FC = () => {
   // a ref so updating its closure does not require recreating the pool.
   useEffect(() => {
     poolEventHandlerRef.current = (sessionId, snapshot) => {
-      const previous =
-        previousSessionMessagesRef.current.get(sessionId) || [];
+      const previous = previousSessionMessagesRef.current.get(sessionId) || [];
       const chatMessages = convertUIMessagesToChatMessages(
         snapshot.messages,
         snapshot.status,
@@ -865,7 +446,11 @@ export const SidepanelApp: FC = () => {
         previous
       );
       previousSessionMessagesRef.current.set(sessionId, chatMessages);
-      handleSessionMessagesChange(sessionId, chatMessages);
+      handleSessionMessagesChange(
+        sessionId,
+        chatMessages,
+        snapshot.rollingSummary
+      );
     };
   }, [handleSessionMessagesChange]);
 
@@ -878,9 +463,9 @@ export const SidepanelApp: FC = () => {
   // streaming; only this hook drives composer/MessageList rendering for the
   // currently displayed session.
   const activeChat = useMemo(() => {
-    if (!poolRef.current || !currentSessionId) return null;
-    return poolRef.current.get(currentSessionId);
-  }, [currentSessionId]);
+    if (!currentSessionId) return null;
+    return pool.get(currentSessionId);
+  }, [currentSessionId, pool]);
 
   const chat = useHuntlyChat({
     chat: activeChat,
@@ -892,10 +477,22 @@ export const SidepanelApp: FC = () => {
     isRunning,
     sendMessage,
     regenerate,
+    retryLastRun,
     cancelRun,
     setMessages,
     clearMessages,
   } = chat;
+
+  const {
+    scrollContainerRef: messageScrollRef,
+    messagesEndRef,
+    showScrollToBottom,
+    handleScroll: handleMessageScroll,
+    scrollToBottom,
+  } = useScrollPinToBottom({
+    messages,
+    thresholdPx: SCROLL_PIN_THRESHOLD_PX,
+  });
 
   // Ensure there is always an active draft session once the app has finished
   // loading, so the composer can send without waiting for a re-render after
@@ -904,10 +501,10 @@ export const SidepanelApp: FC = () => {
     if (loading) return;
     if (currentSessionIdRef.current) return;
     const draftId = generateId();
-    poolRef.current?.ensure(draftId);
+    pool.ensure(draftId);
     currentSessionIdRef.current = draftId;
     setCurrentSessionId(draftId);
-  }, [loading]);
+  }, [loading, pool]);
 
   useEffect(() => {
     let cancelled = false;
@@ -917,26 +514,26 @@ export const SidepanelApp: FC = () => {
         prompts,
         savedModelId,
         savedThinkingMode,
-        tab,
         loadedSystemPrompt,
         loadedTitleGenerationSystemPrompt,
+        syncSettings,
       ] = await Promise.all([
         loadModels(),
         loadSlashPrompts(),
         getSidepanelSelectedModelId(),
         getSidepanelThinkingModeEnabled(),
-        getTabContext(),
         loadSidepanelSystemPrompt(),
         loadSidepanelTitleGenerationSystemPrompt(),
+        readSyncStorageSettings(),
       ]);
       if (cancelled) return;
 
       setModels(availableModels);
       setSlashPrompts(prompts);
       setThinkingMode(savedThinkingMode);
-      setTabContext(tab);
       setSystemPrompt(loadedSystemPrompt);
       setTitleGenerationSystemPrompt(loadedTitleGenerationSystemPrompt);
+      setHuntlyMcpEnabled(Boolean(syncSettings.serverUrl?.trim()));
 
       if (availableModels.length > 0) {
         const resolution = resolveModelSelection(
@@ -955,68 +552,49 @@ export const SidepanelApp: FC = () => {
   }, []);
 
   useEffect(() => {
-    if (attachedPageContext) return;
-
-    let cancelled = false;
-    const refresh = async () => {
-      const nextTabContext = await getTabContext();
-      if (!cancelled) {
-        setTabContext(nextTabContext);
-        setContextError(null);
-      }
-    };
-
-    const handleActivated = () => void refresh();
-    const handleUpdated = (
-      _tabId: number,
-      changeInfo: chrome.tabs.TabChangeInfo,
-      tab: chrome.tabs.Tab
-    ) => {
-      if (
-        tab.active &&
-        (changeInfo.title || changeInfo.url || changeInfo.status === "complete")
-      ) {
-        void refresh();
-      }
-    };
-    const handleFocusChanged = (windowId: number) => {
-      if (windowId !== chrome.windows.WINDOW_ID_NONE) void refresh();
-    };
-
-    void refresh();
-    chrome.tabs.onActivated.addListener(handleActivated);
-    chrome.tabs.onUpdated.addListener(handleUpdated);
-    chrome.windows.onFocusChanged.addListener(handleFocusChanged);
-
-    return () => {
-      cancelled = true;
-      chrome.tabs.onActivated.removeListener(handleActivated);
-      chrome.tabs.onUpdated.removeListener(handleUpdated);
-      chrome.windows.onFocusChanged.removeListener(handleFocusChanged);
-    };
-  }, [attachedPageContext]);
-
-  useEffect(() => {
     const unsubscribe = onConfigChange(async () => {
       const [
         updatedModels,
         updatedPrompts,
         updatedSystemPrompt,
         updatedTitleGenerationSystemPrompt,
-      ] =
-        await Promise.all([
-          loadModels(),
-          loadSlashPrompts(),
-          loadSidepanelSystemPrompt(),
-          loadSidepanelTitleGenerationSystemPrompt(),
-        ]);
+        updatedSyncSettings,
+      ] = await Promise.all([
+        loadModels(),
+        loadSlashPrompts(),
+        loadSidepanelSystemPrompt(),
+        loadSidepanelTitleGenerationSystemPrompt(),
+        readSyncStorageSettings(),
+      ]);
       setModels(updatedModels);
       setSlashPrompts(updatedPrompts);
       setSystemPrompt(updatedSystemPrompt);
       setTitleGenerationSystemPrompt(updatedTitleGenerationSystemPrompt);
+      setHuntlyMcpEnabled(Boolean(updatedSyncSettings.serverUrl?.trim()));
     });
     return unsubscribe;
   }, []);
+
+  useEffect(() => {
+    const onChanged = getChromeApi()?.storage?.onChanged;
+    if (!onChanged) return;
+
+    const handler = (
+      changes: Record<string, ChromeStorageChange>,
+      areaName: string
+    ) => {
+      if (areaName !== "sync") return;
+      if (!("serverUrl" in changes)) return;
+      const nextUrl = changes.serverUrl?.newValue as string | undefined;
+      setHuntlyMcpEnabled(Boolean(nextUrl?.trim()));
+    };
+    onChanged.addListener(handler);
+    return () => onChanged.removeListener(handler);
+  }, []);
+
+  useEffect(() => {
+    setStatusAction(null);
+  }, [currentSessionId]);
 
   useEffect(() => {
     const flushPendingSession = () => {
@@ -1035,53 +613,10 @@ export const SidepanelApp: FC = () => {
     return () => {
       window.removeEventListener("pagehide", flushPendingSession);
       document.removeEventListener("visibilitychange", handleVisibilityChange);
-      cancelAllTitleGenerations();
-      poolRef.current?.disposeAll();
+      titleGeneration.cancelAll();
+      pool.disposeAll();
     };
-  }, [cancelAllTitleGenerations, persistence]);
-
-  const scrollToBottom = useCallback((behavior: ScrollBehavior = "smooth") => {
-    messageScrollPinnedRef.current = true;
-    setShowScrollToBottom(false);
-    messagesEndRef.current?.scrollIntoView({ block: "end", behavior });
-  }, []);
-
-  const handleMessageScroll = useCallback(() => {
-    const scrollContainer = messageScrollRef.current;
-    if (!scrollContainer) return;
-
-    const distanceToBottom =
-      scrollContainer.scrollHeight -
-      scrollContainer.scrollTop -
-      scrollContainer.clientHeight;
-    const pinned = isScrollPinnedToBottom(
-      distanceToBottom,
-      SCROLL_PIN_THRESHOLD_PX
-    );
-
-    messageScrollPinnedRef.current = pinned;
-    setShowScrollToBottom(
-      shouldShowScrollToBottomButton(messages.length, pinned)
-    );
-  }, [messages.length]);
-
-  useEffect(() => {
-    if (messages.length === 0) {
-      messageScrollPinnedRef.current = true;
-      setShowScrollToBottom(false);
-      return;
-    }
-
-    if (!messageScrollPinnedRef.current) {
-      setShowScrollToBottom(
-        shouldShowScrollToBottomButton(messages.length, false)
-      );
-      return;
-    }
-
-    const frame = window.requestAnimationFrame(() => scrollToBottom("auto"));
-    return () => window.cancelAnimationFrame(frame);
-  }, [messages, scrollToBottom]);
+  }, [persistence, pool, titleGeneration]);
 
   const filteredPrompts = useMemo(
     () =>
@@ -1121,9 +656,10 @@ export const SidepanelApp: FC = () => {
 
   const handleDeleteSession = useCallback(
     async (id: string) => {
+      await persistence.flush();
       persistence.markDeleted(id);
-      cancelTitleGenerationFor(id);
-      poolRef.current?.remove(id);
+      titleGeneration.cancelFor(id);
+      pool.remove(id);
       sessionsDataRef.current.delete(id);
       previousSessionMessagesRef.current.delete(id);
 
@@ -1135,7 +671,7 @@ export const SidepanelApp: FC = () => {
       if (currentSessionIdRef.current === id) {
         // Switch to a fresh draft so the composer is still usable.
         const draftId = generateId();
-        poolRef.current?.ensure(draftId);
+        pool.ensure(draftId);
         currentSessionIdRef.current = draftId;
         setCurrentSessionId(draftId);
         clearInlineUserMessageEdit();
@@ -1143,10 +679,11 @@ export const SidepanelApp: FC = () => {
       }
     },
     [
-      cancelTitleGenerationFor,
       clearInlineUserMessageEdit,
       persistence,
+      pool,
       resetComposerState,
+      titleGeneration,
     ]
   );
 
@@ -1238,9 +775,6 @@ export const SidepanelApp: FC = () => {
         // Switch sessions WITHOUT cancelling the previously active session.
         // The pool keeps that Chat alive so its stream continues in the
         // background; persistence and title generation stay wired up.
-        const pool = poolRef.current;
-        if (!pool) return;
-
         let openedSession: SessionData | null =
           sessionsDataRef.current.get(id) ?? null;
         let chatMessages: ChatMessage[];
@@ -1271,7 +805,7 @@ export const SidepanelApp: FC = () => {
           };
           sessionsDataRef.current.set(id, openedSession);
           previousSessionMessagesRef.current.set(id, chatMessages);
-          pool.ensure(id, chatMessages);
+          pool.ensure(id, chatMessages, openedSession.rollingSummary);
         }
 
         const openedAt = new Date().toISOString();
@@ -1305,26 +839,24 @@ export const SidepanelApp: FC = () => {
         void markSessionOpened(id, openedAt).catch((error) => {
           console.error("[SidepanelApp] Failed to mark session opened", error);
         });
-        maybeGenerateSessionTitle(finalSession, chatMessages);
+        titleGeneration.maybeGenerate(finalSession, chatMessages);
       } catch (error) {
         console.error("[SidepanelApp] Failed to open session", error);
       }
     },
     [
       clearInlineUserMessageEdit,
-      maybeGenerateSessionTitle,
       persistence,
+      pool,
       pruneEmptyDraft,
       resetComposerState,
+      titleGeneration,
     ]
   );
 
   const handleNewChat = useCallback(() => {
     // Don't cancel any running session. Just open a fresh draft chat; the
     // previous session keeps streaming via the pool until it completes.
-    const pool = poolRef.current;
-    if (!pool) return;
-
     const previousId = currentSessionIdRef.current;
     const draftId = generateId();
     pool.ensure(draftId);
@@ -1337,7 +869,7 @@ export const SidepanelApp: FC = () => {
     setSlashPromptIndex(0);
     resetComposerState();
     inputRef.current?.focus();
-  }, [clearInlineUserMessageEdit, pruneEmptyDraft, resetComposerState]);
+  }, [clearInlineUserMessageEdit, pool, pruneEmptyDraft, resetComposerState]);
 
   const prepareOutgoingText = useCallback(
     (text: string) => {
@@ -1376,8 +908,8 @@ export const SidepanelApp: FC = () => {
 
       setAttachmentProcessingLabel(
         selectedFiles.length > 1
-          ? "Processing attachments..."
-          : "Processing attachment..."
+          ? t("sidepanel.processing.attachments")
+          : t("sidepanel.processing.attachment")
       );
 
       void attachFiles(selectedFiles)
@@ -1388,7 +920,7 @@ export const SidepanelApp: FC = () => {
           setAttachmentProcessingLabel(null);
         });
     },
-    [attachFiles]
+    [attachFiles, t]
   );
 
   const addAttachmentFromSource = useCallback(async (source: string) => {
@@ -1404,88 +936,93 @@ export const SidepanelApp: FC = () => {
     }
   }, []);
 
-  const [isDraggingOver, setIsDraggingOver] = useState(false);
-  const dragDepthRef = useRef(0);
-  const internalDragRef = useRef(false);
+  const appendPendingContextCommands = useCallback(
+    async (commands: PendingSidepanelContextCommand[]) => {
+      if (commands.length === 0) {
+        return [] as string[];
+      }
 
-  const hasFilesOrUrl = useCallback((event: React.DragEvent) => {
-    if (internalDragRef.current) {
-      return false;
-    }
+      setAttachmentProcessingLabel(t("sidepanel.processing.chatContext"));
 
-    const items = Array.from(event.dataTransfer?.items || []);
-    if (items.length > 0) {
-      return items.some(
-        (item) =>
-          item.kind === "file" ||
-          (item.kind === "string" && DROPPABLE_STRING_TYPES.has(item.type))
+      const completedIds: string[] = [];
+      try {
+        for (const command of commands) {
+          if (command.kind === "image") {
+            const attached = await addAttachmentFromSource(command.source);
+            if (attached) {
+              completedIds.push(command.id);
+            }
+            continue;
+          }
+
+          if (command.kind === "page-context") {
+            try {
+              const part = await createCurrentPageContextPart();
+              setAttachedPageContext(part);
+              setContextError(null);
+              completedIds.push(command.id);
+            } catch (error) {
+              console.error(
+                "[SidepanelApp] Failed to attach page context",
+                error
+              );
+              setContextError(t("sidepanel.error.readTab"));
+            }
+            continue;
+          }
+
+          try {
+            const part = createPageContextPart(command.page, {
+              title:
+                command.page.title || t("sidepanel.context.selectedContent"),
+              url: command.page.url,
+              faviconUrl: command.page.faviconUrl,
+            });
+            setAttachedPageContext(part);
+            setContextError(null);
+            completedIds.push(command.id);
+          } catch (error) {
+            console.error(
+              "[SidepanelApp] Failed to attach selection context",
+              error
+            );
+            setContextError(t("sidepanel.error.readSelection"));
+          }
+        }
+
+        if (completedIds.length > 0) {
+          inputRef.current?.focus();
+        }
+
+        return completedIds;
+      } finally {
+        setAttachmentProcessingLabel(null);
+      }
+    },
+    [addAttachmentFromSource, t]
+  );
+
+  useSidepanelContextMenu(appendPendingContextCommands);
+
+  const handleDropPayload = useCallback(
+    async (dataTransfer: DataTransfer) => {
+      const { files, sources } = await extractDroppedPayload(
+        dataTransfer,
+        tabContext?.url
       );
-    }
 
-    return Array.from(event.dataTransfer?.types || []).some(
-      (type) => type === "Files" || DROPPABLE_STRING_TYPES.has(type)
-    );
-  }, []);
-
-  const handleDragEnter = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!hasFilesOrUrl(event)) return;
-      event.preventDefault();
-      dragDepthRef.current += 1;
-      setIsDraggingOver(true);
-    },
-    [hasFilesOrUrl]
-  );
-
-  const handleDragOver = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!hasFilesOrUrl(event)) return;
-      event.preventDefault();
-      event.dataTransfer.dropEffect = "copy";
-    },
-    [hasFilesOrUrl]
-  );
-
-  const handleDragLeave = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!hasFilesOrUrl(event)) return;
-      dragDepthRef.current = Math.max(0, dragDepthRef.current - 1);
-      if (dragDepthRef.current === 0) setIsDraggingOver(false);
-    },
-    [hasFilesOrUrl]
-  );
-
-  const handleDrop = useCallback(
-    (event: React.DragEvent<HTMLDivElement>) => {
-      if (!hasFilesOrUrl(event)) return;
-      event.preventDefault();
-      internalDragRef.current = false;
-      dragDepthRef.current = 0;
-      setIsDraggingOver(false);
-
-      void (async () => {
-        const filesFromItems = dedupeFiles(
-          Array.from(event.dataTransfer.items || [])
-            .filter((item) => item.kind === "file")
-            .map((item) => item.getAsFile())
-            .filter((file): file is File => Boolean(file))
-        );
-        const files =
-          filesFromItems.length > 0
-            ? filesFromItems
-            : dedupeFiles(Array.from(event.dataTransfer.files || []));
-
+      try {
         if (files.length > 0) {
           setAttachmentProcessingLabel(
             files.length > 1
-              ? "Processing dropped files..."
-              : "Processing dropped file..."
+              ? t("sidepanel.processing.droppedFiles")
+              : t("sidepanel.processing.droppedFile")
           );
           await attachFiles(files);
           return;
         }
 
-        setAttachmentProcessingLabel("Processing dropped image...");
+        setAttachmentProcessingLabel(t("sidepanel.processing.droppedImage"));
         let attached = false;
         const draggedSource = await getDraggedImageSource();
         if (draggedSource) {
@@ -1493,11 +1030,6 @@ export const SidepanelApp: FC = () => {
         }
 
         if (!attached) {
-          const { sources } = await extractDroppedPayload(
-            event.dataTransfer,
-            tabContext?.url
-          );
-
           for (const source of sources) {
             attached = await addAttachmentFromSource(source);
             if (attached) {
@@ -1509,24 +1041,18 @@ export const SidepanelApp: FC = () => {
         if (attached) {
           await clearDraggedImageSource();
         }
-      })().catch((error) => {
+      } catch (error) {
         console.error("[SidepanelApp] Failed to handle drop", error);
-      }).finally(() => {
+      } finally {
         setAttachmentProcessingLabel(null);
-      });
+      }
     },
-    [addAttachmentFromSource, attachFiles, hasFilesOrUrl, tabContext?.url]
+    [addAttachmentFromSource, attachFiles, t, tabContext?.url]
   );
 
-  const handleInternalDragStartCapture = useCallback(() => {
-    internalDragRef.current = true;
-  }, []);
-
-  const handleInternalDragEndCapture = useCallback(() => {
-    internalDragRef.current = false;
-    dragDepthRef.current = 0;
-    setIsDraggingOver(false);
-  }, []);
+  const { isDraggingOver, handlers: dragHandlers } = useDragAndDropZone({
+    onDrop: handleDropPayload,
+  });
 
   const handleAttachmentRemove = useCallback((id: string) => {
     setAttachments((previous) => previous.filter((part) => part.id !== id));
@@ -1603,13 +1129,12 @@ export const SidepanelApp: FC = () => {
 
       const activeSessionId = currentSessionIdRef.current;
       if (activeSessionId) {
-        cancelTitleGenerationFor(activeSessionId);
+        titleGeneration.cancelFor(activeSessionId);
       }
 
       clearInlineUserMessageEdit();
     },
     [
-      cancelTitleGenerationFor,
       clearInlineUserMessageEdit,
       clearMessages,
       editingUserMessageId,
@@ -1619,6 +1144,7 @@ export const SidepanelApp: FC = () => {
       prepareOutgoingText,
       sendMessage,
       setMessages,
+      titleGeneration,
     ]
   );
 
@@ -1626,12 +1152,40 @@ export const SidepanelApp: FC = () => {
     (messageId: string) => {
       const activeSessionId = currentSessionIdRef.current;
       if (activeSessionId) {
-        cancelTitleGenerationFor(activeSessionId);
+        titleGeneration.cancelFor(activeSessionId);
       }
       void regenerate(messageId);
     },
-    [cancelTitleGenerationFor, regenerate]
+    [regenerate, titleGeneration]
   );
+
+  const handleRetryLastRun = useCallback(() => {
+    const activeSessionId = currentSessionIdRef.current;
+    if (isRunning || statusAction) {
+      return;
+    }
+    if (activeSessionId) {
+      titleGeneration.cancelFor(activeSessionId);
+    }
+    setStatusAction("retry");
+    void retryLastRun().finally(() => setStatusAction(null));
+  }, [isRunning, retryLastRun, statusAction, titleGeneration]);
+
+  const handleCompactContext = useCallback(() => {
+    const activeSessionId = currentSessionIdRef.current;
+    if (!activeSessionId || isRunning || statusAction) {
+      return;
+    }
+
+    titleGeneration.cancelFor(activeSessionId);
+    setStatusAction("compact");
+    void pool
+      .compact(activeSessionId)
+      .catch((error) => {
+        console.error("[SidepanelApp] Failed to compact context", error);
+      })
+      .finally(() => setStatusAction(null));
+  }, [isRunning, pool, statusAction, titleGeneration]);
 
   const handleAttachContext = useCallback(async () => {
     if (contextLoading || attachedPageContext) return;
@@ -1643,11 +1197,11 @@ export const SidepanelApp: FC = () => {
       setAttachedPageContext(context);
     } catch (error) {
       console.error("[SidepanelApp] Failed to attach tab context", error);
-      setContextError("Unable to read this tab");
+      setContextError(t("sidepanel.error.readTab"));
     } finally {
       setContextLoading(false);
     }
-  }, [attachedPageContext, contextLoading]);
+  }, [attachedPageContext, contextLoading, t]);
 
   const handleDetachContext = useCallback(() => {
     setAttachedPageContext(null);
@@ -1670,10 +1224,7 @@ export const SidepanelApp: FC = () => {
   }, [clearInlineUserMessageEdit, editingUserMessageId, messages]);
 
   const sendText = useCallback(
-    async (
-      text: string,
-      options?: { includeCurrentPageContext?: boolean }
-    ) => {
+    async (text: string, options?: { includeCurrentPageContext?: boolean }) => {
       const trimmed = text.trim();
       if (
         (!trimmed && attachments.length === 0) ||
@@ -1697,11 +1248,14 @@ export const SidepanelApp: FC = () => {
             "[SidepanelApp] Failed to attach quick action page context",
             error
           );
-          setContextError("Unable to read this tab");
+          setContextError(t("sidepanel.error.readTab"));
           return;
         }
       } else if (attachedPageContext) {
-        messageParts = [clonePageContextPart(attachedPageContext), ...attachments];
+        messageParts = [
+          clonePageContextPart(attachedPageContext),
+          ...attachments,
+        ];
       }
 
       const sent = sendMessage(finalText, messageParts);
@@ -1721,6 +1275,7 @@ export const SidepanelApp: FC = () => {
       prepareOutgoingText,
       resetComposerState,
       sendMessage,
+      t,
     ]
   );
 
@@ -1811,13 +1366,16 @@ export const SidepanelApp: FC = () => {
 
   const openModelSettings = useCallback(() => {
     try {
-      const optionsUrl = chrome.runtime.getURL("options.html");
+      const chromeApi = getChromeApi();
+      const optionsUrl = chromeApi?.runtime?.getURL?.("options.html");
+      if (!optionsUrl) return;
+
       const url = `${optionsUrl}#ai-providers`;
-      if (chrome.tabs?.create) {
-        chrome.tabs.create({ url });
+      if (chromeApi.tabs?.create) {
+        chromeApi.tabs.create({ url });
         return;
       }
-      chrome.runtime.sendMessage({ type: "open_tab", url });
+      chromeApi.runtime?.sendMessage?.({ type: "open_tab", url });
     } catch (error) {
       console.error("[SidepanelApp] Failed to open model settings", error);
     }
@@ -1837,12 +1395,7 @@ export const SidepanelApp: FC = () => {
   return (
     <div
       className="relative flex h-full overflow-hidden bg-[#f7f3ea] text-[#2f261f]"
-      onDragEndCapture={handleInternalDragEndCapture}
-      onDragEnter={handleDragEnter}
-      onDragOver={handleDragOver}
-      onDragLeave={handleDragLeave}
-      onDrop={handleDrop}
-      onDragStartCapture={handleInternalDragStartCapture}
+      {...dragHandlers}
     >
       <HistoryDrawer
         currentSessionId={currentSessionId}
@@ -1869,6 +1422,16 @@ export const SidepanelApp: FC = () => {
           {messages.length === 0 ? (
             <WelcomePane
               disabled={isRunning}
+              huntlyMcpEnabled={huntlyMcpEnabled}
+              onQuickActionFillComposer={(text) => {
+                setInputText(text);
+                requestAnimationFrame(() => {
+                  const input = inputRef.current;
+                  if (!input) return;
+                  input.focus();
+                  input.setSelectionRange(text.length, text.length);
+                });
+              }}
               onQuickActionSend={(text, options) => {
                 void sendText(text, options);
               }}
@@ -1882,24 +1445,27 @@ export const SidepanelApp: FC = () => {
               endRef={messagesEndRef}
               isRunning={isRunning}
               messages={messages}
+              statusAction={statusAction}
               onCancelUserMessageEdit={handleCancelUserMessageEdit}
+              onCompactContext={handleCompactContext}
               onEditUserMessage={handleEditUserMessage}
               onEditUserMessageTextChange={handleEditUserMessageTextChange}
               onRegenerate={handleRegenerateMessage}
+              onRetryLastRun={handleRetryLastRun}
               onSaveUserMessageEdit={handleSaveUserMessageEdit}
               thinkingMode={thinkingMode}
             />
           )}
         </div>
 
-        <div className="shrink-0 bg-[#f7f3ea]/95 px-4 pb-4 pt-3">
+        <div className="relative shrink-0 bg-[#f7f3ea]/95 px-4 pb-4 pt-3">
           {showScrollToBottom && (
-            <div className="mb-2 flex justify-end">
+            <div className="pointer-events-none absolute bottom-full right-4 z-10 mb-2">
               <button
                 type="button"
-                aria-label="Scroll to bottom"
-                title="Scroll to bottom"
-                className="inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d8cfbf] bg-[#fffaf4] text-[#5f5347] shadow-[0_8px_24px_rgba(64,48,31,0.14)] transition-colors hover:bg-[#f4efe6] hover:text-[#2f261f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a34020] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f7f3ea]"
+                aria-label={t("sidepanel.scrollToBottom")}
+                title={t("sidepanel.scrollToBottom")}
+                className="pointer-events-auto inline-flex h-11 w-11 items-center justify-center rounded-full border border-[#d8cfbf] bg-[#fffaf4] text-[#5f5347] shadow-[0_8px_24px_rgba(64,48,31,0.14)] transition-colors hover:bg-[#f4efe6] hover:text-[#2f261f] focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a34020] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f7f3ea]"
                 onClick={() => scrollToBottom("smooth")}
               >
                 <ChevronDown className="size-5" />
@@ -1944,7 +1510,7 @@ export const SidepanelApp: FC = () => {
       {isDraggingOver && (
         <div className="pointer-events-none absolute inset-0 z-40 flex items-center justify-center bg-[#2f261f]/10 backdrop-blur-[1px]">
           <div className="rounded-2xl border-2 border-dashed border-[#a34020] bg-[#fffaf4]/95 px-6 py-4 text-sm font-semibold text-[#a34020] shadow-[0_16px_55px_rgba(64,48,31,0.18)]">
-            Drop images or files to attach
+            {t("sidepanel.dropOverlay")}
           </div>
         </div>
       )}

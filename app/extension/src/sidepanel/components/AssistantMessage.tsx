@@ -3,18 +3,23 @@ import { Check, Copy, RotateCcw } from "lucide-react";
 import { MessageFooter } from "./MessageFooter";
 import type { ChatMessage } from "../types";
 import { extractLinkCardGroups, getMessageText } from "../utils/messageParts";
+import { AssistantStatusCard } from "./AssistantStatusCard";
 import { IconButton } from "./IconButton";
 import { LinkCardsBlock } from "./LinkCardsBlock";
 import { MarkdownContent } from "./MarkdownContent";
 import { ReasoningBlock } from "./ReasoningBlock";
 import { ToolCallBlock } from "./ToolCallBlock";
+import { useI18n } from "../../i18n";
 
 interface AssistantMessageProps {
   message: ChatMessage;
   isLast: boolean;
   isRunning: boolean;
   thinkingMode: boolean;
+  statusAction?: "retry" | "compact" | null;
+  onCompactContext?: () => void;
   onRegenerate?: (messageId: string) => void;
+  onRetryLastRun?: () => void;
 }
 
 const AssistantMessageImpl: FC<AssistantMessageProps> = ({
@@ -22,11 +27,18 @@ const AssistantMessageImpl: FC<AssistantMessageProps> = ({
   isLast,
   isRunning,
   thinkingMode,
+  statusAction = null,
+  onCompactContext,
   onRegenerate,
+  onRetryLastRun,
 }) => {
+  const { t } = useI18n();
   const hasReasoningText = message.parts.some(
     (part) => part.type === "reasoning" && part.text?.trim()
   );
+  const hasOnlyStatusParts =
+    message.parts.length > 0 &&
+    message.parts.every((part) => part.type === "status");
   const showThinkingPreview =
     thinkingMode && isLast && isRunning && !hasReasoningText;
   const text = useMemo(() => getMessageText(message.parts), [message.parts]);
@@ -68,7 +80,10 @@ const AssistantMessageImpl: FC<AssistantMessageProps> = ({
     <div className="group flex gap-3">
       <div className="min-w-0 flex-1">
         {showThinkingPreview && (
-          <ReasoningBlock streaming={true} text="Thinking..." />
+          <ReasoningBlock
+            streaming={true}
+            text={`${t("common.thinking")}...`}
+          />
         )}
 
         {message.parts.map((part, index) => {
@@ -100,6 +115,18 @@ const AssistantMessageImpl: FC<AssistantMessageProps> = ({
               </React.Fragment>
             );
           }
+          if (part.type === "status") {
+            return (
+              <AssistantStatusCard
+                key={part.id || `${message.id}-${index}`}
+                actionable={Boolean(isLast && !isRunning)}
+                busyAction={statusAction}
+                onCompactContext={onCompactContext}
+                onRetryLastRun={onRetryLastRun}
+                part={part}
+              />
+            );
+          }
           if (part.type === "text" && part.text?.trim()) {
             return (
               <MarkdownContent
@@ -120,13 +147,15 @@ const AssistantMessageImpl: FC<AssistantMessageProps> = ({
           </div>
         )}
 
-        {!(isLast && isRunning) && (
+        {!(isLast && isRunning) && !hasOnlyStatusParts && (
           <MessageFooter actionsVisibility="always">
             <IconButton
               disabled={!text}
               active={copyFeedbackVisible}
               className={footerButtonClassName}
-              label={copyFeedbackVisible ? "Copied" : "Copy"}
+              label={
+                copyFeedbackVisible ? t("common.copied") : t("common.copy")
+              }
               onClick={handleCopy}
             >
               {copyFeedbackVisible ? (
@@ -138,7 +167,7 @@ const AssistantMessageImpl: FC<AssistantMessageProps> = ({
             {onRegenerate && (
               <IconButton
                 className={footerButtonClassName}
-                label="Retry response"
+                label={t("sidepanel.retryResponse")}
                 onClick={() => onRegenerate(message.id)}
               >
                 <RotateCcw className="size-4" />
@@ -158,6 +187,9 @@ export const AssistantMessage = React.memo(
     prev.isLast === next.isLast &&
     prev.isRunning === next.isRunning &&
     prev.thinkingMode === next.thinkingMode &&
-    prev.onRegenerate === next.onRegenerate
+    prev.statusAction === next.statusAction &&
+    prev.onCompactContext === next.onCompactContext &&
+    prev.onRegenerate === next.onRegenerate &&
+    prev.onRetryLastRun === next.onRetryLastRun
 );
 AssistantMessage.displayName = "AssistantMessage";

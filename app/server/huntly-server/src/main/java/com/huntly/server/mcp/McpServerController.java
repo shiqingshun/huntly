@@ -5,8 +5,11 @@ import com.fasterxml.jackson.databind.ObjectMapper;
 import com.huntly.server.domain.entity.GlobalSetting;
 import com.huntly.server.mcp.tool.McpTool;
 import com.huntly.server.service.GlobalSettingService;
+import com.huntly.server.service.UserService;
 import lombok.extern.slf4j.Slf4j;
 import org.apache.commons.lang3.StringUtils;
+import org.springframework.security.core.Authentication;
+import org.springframework.security.core.context.SecurityContextHolder;
 import org.springframework.http.MediaType;
 import org.springframework.http.ResponseEntity;
 import org.springframework.web.bind.annotation.*;
@@ -14,14 +17,14 @@ import org.springframework.web.servlet.mvc.method.annotation.SseEmitter;
 
 import javax.servlet.http.HttpServletResponse;
 import java.io.IOException;
+import java.security.Principal;
 import java.util.HashMap;
 import java.util.Map;
 import java.util.UUID;
 import java.util.concurrent.ConcurrentHashMap;
 
 /**
- * MCP Server Controller implementing SSE transport
- * Based on MCP (Model Context Protocol) specification
+ * MCP Server Controller implementing SSE transport.
  */
 @Slf4j
 @RestController
@@ -30,17 +33,20 @@ public class McpServerController {
 
     private final McpToolRegistry toolRegistry;
     private final GlobalSettingService globalSettingService;
+    private final UserService userService;
     private final ObjectMapper objectMapper;
     private final Map<String, SseEmitter> sessions = new ConcurrentHashMap<>();
 
     private static final String MCP_VERSION = "2024-11-05";
     private static final String SERVER_NAME = "huntly-mcp-server";
     private static final String SERVER_VERSION = "1.0.0";
+    private static final String ANONYMOUS_USER = "anonymousUser";
 
     public McpServerController(McpToolRegistry toolRegistry, GlobalSettingService globalSettingService,
-            ObjectMapper objectMapper) {
+            UserService userService, ObjectMapper objectMapper) {
         this.toolRegistry = toolRegistry;
         this.globalSettingService = globalSettingService;
+        this.userService = userService;
         this.objectMapper = objectMapper;
     }
 
@@ -49,8 +55,14 @@ public class McpServerController {
      * This endpoint is accessible without MCP token (uses session auth)
      */
     @GetMapping(value = "/tools", produces = MediaType.APPLICATION_JSON_VALUE)
-    public java.util.List<Map<String, Object>> getTools() {
-        return toolRegistry.getToolDefinitions();
+    public ResponseEntity<java.util.List<Map<String, Object>>> getTools(
+            Principal principal,
+            @RequestHeader(value = "Authorization", required = false) String authorization) {
+        if (!isAuthorized(principal, authorization)) {
+            return ResponseEntity.status(HttpServletResponse.SC_UNAUTHORIZED).build();
+        }
+
+        return ResponseEntity.ok(toolRegistry.getToolDefinitions());
     }
 
     /**
@@ -58,7 +70,14 @@ public class McpServerController {
      * This endpoint is accessible without MCP token (uses session auth)
      */
     @PostMapping(value = "/tools/test", consumes = MediaType.APPLICATION_JSON_VALUE, produces = MediaType.APPLICATION_JSON_VALUE)
-    public ResponseEntity<Map<String, Object>> testTool(@RequestBody Map<String, Object> request) {
+    public ResponseEntity<Map<String, Object>> testTool(
+            Principal principal,
+            @RequestHeader(value = "Authorization", required = false) String authorization,
+            @RequestBody Map<String, Object> request) {
+        if (!isAuthorized(principal, authorization)) {
+            return ResponseEntity.status(HttpServletResponse.SC_UNAUTHORIZED).build();
+        }
+
         String toolName = (String) request.get("name");
         @SuppressWarnings("unchecked")
         Map<String, Object> arguments = (Map<String, Object>) request.get("arguments");
@@ -90,16 +109,17 @@ public class McpServerController {
      */
     @GetMapping(value = "/sse", produces = MediaType.TEXT_EVENT_STREAM_VALUE)
     public SseEmitter connect(
+            Principal principal,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             HttpServletResponse response) {
-        if (!validateToken(authorization)) {
-            log.warn("MCP SSE connection rejected: invalid or missing token");
+        if (!isAuthorized(principal, authorization)) {
+            log.warn("MCP SSE connection rejected: invalid or missing authorization");
             response.setStatus(HttpServletResponse.SC_UNAUTHORIZED);
             SseEmitter emitter = new SseEmitter(0L);
             try {
                 emitter.send(SseEmitter.event()
                         .name("error")
-                        .data("{\"error\": \"Unauthorized: Invalid or missing MCP token\"}"));
+                        .data("{\"error\": \"Unauthorized: Invalid MCP token or missing login\"}"));
                 emitter.complete();
             } catch (IOException e) {
                 log.error("Failed to send error message", e);
@@ -137,11 +157,12 @@ public class McpServerController {
      */
     @PostMapping(value = "/message", consumes = MediaType.APPLICATION_JSON_VALUE)
     public ResponseEntity<Void> handleMessage(
+            Principal principal,
             @RequestHeader(value = "Authorization", required = false) String authorization,
             @RequestParam(required = false) String sessionId,
             @RequestBody Map<String, Object> request) {
 
-        if (!validateToken(authorization)) {
+        if (!isAuthorized(principal, authorization)) {
             return ResponseEntity.status(401).build();
         }
 
@@ -257,13 +278,22 @@ public class McpServerController {
                 .data(jsonData));
     }
 
-    private boolean validateToken(String authorization) {
+    private boolean isAuthorized(Principal principal, String authorization) {
+        if (principal != null && isAuthenticatedLoginUser(principal.getName())) {
+            return true;
+        }
+
+        Authentication authentication = SecurityContextHolder.getContext().getAuthentication();
+        if (authentication != null && authentication.isAuthenticated()
+                && isAuthenticatedLoginUser(authentication.getName())) {
+            return true;
+        }
+
         GlobalSetting setting = globalSettingService.getGlobalSetting();
         String configuredToken = setting.getMcpToken();
 
-        // If no token configured, deny access for security (MCP is disabled)
+        // If no MCP token configured, fall back to login-based access only.
         if (StringUtils.isBlank(configuredToken)) {
-            log.debug("MCP access denied: no token configured");
             return false;
         }
 
@@ -277,5 +307,11 @@ public class McpServerController {
                 : authorization;
 
         return configuredToken.equals(token);
+    }
+
+    private boolean isAuthenticatedLoginUser(String username) {
+        return StringUtils.isNotBlank(username)
+                && !ANONYMOUS_USER.equals(username)
+                && userService.existsByUsername(username);
     }
 }

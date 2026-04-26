@@ -9,14 +9,15 @@ import type { LucideIcon } from "lucide-react";
 import {
   AlertTriangle,
   BookOpen,
-  Command,
+  Image as ImageIcon,
   Loader2,
-  Search,
   Sparkles,
+  Command,
 } from "lucide-react";
 
 import type { SlashPrompt } from "../types";
 import type { TabContext } from "../utils/tabContext";
+import { useI18n } from "../../i18n";
 
 export const LoadingScreen: FC = () => (
   <div className="flex h-full items-center justify-center bg-[#f7f3ea] text-[#75695b]">
@@ -24,14 +25,24 @@ export const LoadingScreen: FC = () => (
   </div>
 );
 
-type WelcomeActionGroupId = "understand" | "question" | "library" | "prompts";
+type WelcomeActionGroupId =
+  | "shortcuts"
+  | "page"
+  | "image"
+  | "library";
+
+type QuickActionMode = "send" | "fill";
+type WelcomeQuickActionTone = "default" | "prompt";
 
 interface WelcomeQuickAction {
   id: string;
   label: string;
   prompt: string;
+  mode?: QuickActionMode;
+  tone?: WelcomeQuickActionTone;
   includeCurrentPageContext?: boolean;
   disabled?: boolean;
+  hint?: string;
 }
 
 interface WelcomeActionGroup {
@@ -49,168 +60,168 @@ interface WelcomeQuickActionSendOptions {
 interface WelcomePaneProps {
   slashPrompts: SlashPrompt[];
   tabContext: TabContext | null;
+  huntlyMcpEnabled: boolean;
   onQuickActionSend: (
     prompt: string,
     options?: WelcomeQuickActionSendOptions
   ) => void;
+  onQuickActionFillComposer: (prompt: string) => void;
   disabled?: boolean;
 }
 
+type TranslateFn = ReturnType<typeof useI18n>["t"];
+
+const MAX_PROMPT_CHIPS = 6;
+const MAX_STATIC_ACTIONS = 4;
+
 function buildWelcomeGroups(
+  t: TranslateFn,
   slashPrompts: SlashPrompt[],
-  tabContext: TabContext | null
+  tabContext: TabContext | null,
+  huntlyMcpEnabled: boolean
 ): WelcomeActionGroup[] {
   const pageReady = Boolean(tabContext?.url);
-  const promptActions = slashPrompts.slice(0, 4).map((prompt) => ({
-    id: prompt.id,
-    label: `/${prompt.trigger}`,
-    prompt: `/${prompt.trigger}`,
-  }));
+
+  const promptActions: WelcomeQuickAction[] = slashPrompts
+    .slice(0, MAX_PROMPT_CHIPS)
+    .map((prompt) => ({
+      id: prompt.id,
+      label: `/${prompt.trigger}`,
+      prompt: `/${prompt.trigger}`,
+      tone: "prompt",
+    }));
 
   const pageActions: WelcomeQuickAction[] = [
     {
       id: "page-summary",
-      label: "Summarize page",
-      prompt:
-        "Summarize this page and give me the five most important takeaways.",
-      includeCurrentPageContext: true,
-      disabled: !pageReady,
-    },
-    {
-      id: "page-takeaways",
-      label: "Key takeaways",
-      prompt:
-        "Read this page and give me the key takeaways in a short, scannable list.",
+      label: t("sidepanel.welcome.action.pageSummary.prompt"),
+      prompt: t("sidepanel.welcome.action.pageSummary.prompt"),
       includeCurrentPageContext: true,
       disabled: !pageReady,
     },
     {
       id: "page-plain",
-      label: "Explain simply",
-      prompt:
-        "Explain this page in plain English, then tell me why it matters and what I should pay attention to.",
-      includeCurrentPageContext: true,
-      disabled: !pageReady,
-    },
-    {
-      id: "page-outline",
-      label: "Reading outline",
-      prompt:
-        "Read this page and turn it into a short outline with the main sections and ideas.",
+      label: t("sidepanel.welcome.action.pageExplain.prompt"),
+      prompt: t("sidepanel.welcome.action.pageExplain.prompt"),
       includeCurrentPageContext: true,
       disabled: !pageReady,
     },
   ];
 
-  const questionActions: WelcomeQuickAction[] = [
+  const selectionActions: WelcomeQuickAction[] = [
     {
-      id: "page-risks",
-      label: "Spot weak claims",
-      prompt:
-        "Review this page critically and point out any claims, assumptions, or gaps that deserve a follow-up.",
-      includeCurrentPageContext: true,
+      id: "selection-explain",
+      label: t("sidepanel.welcome.action.selectionExplain.prompt"),
+      prompt: t("sidepanel.welcome.action.selectionExplain.prompt"),
       disabled: !pageReady,
     },
     {
-      id: "page-questions",
-      label: "Next questions",
-      prompt:
-        "Read this page and turn it into a short list of the best follow-up questions I should ask next.",
-      includeCurrentPageContext: true,
+      id: "selection-translate",
+      label: t("sidepanel.welcome.action.selectionTranslate.prompt"),
+      prompt: t("sidepanel.welcome.action.selectionTranslate.prompt"),
       disabled: !pageReady,
     },
+  ];
+
+  const imageActions: WelcomeQuickAction[] = [
     {
-      id: "page-verify",
-      label: "What to verify",
-      prompt:
-        "Read this page and tell me what claims or facts I should verify before trusting it fully.",
-      includeCurrentPageContext: true,
-      disabled: !pageReady,
+      id: "image-translate",
+      label: t("sidepanel.welcome.action.imageTranslate.prompt"),
+      prompt: t("sidepanel.welcome.action.imageTranslate.prompt"),
+      mode: "fill",
     },
     {
-      id: "page-angles",
-      label: "Missing angles",
-      prompt:
-        "What perspectives, counterarguments, or missing angles are absent from this page?",
-      includeCurrentPageContext: true,
-      disabled: !pageReady,
+      id: "image-describe",
+      label: t("sidepanel.welcome.action.imageDescribe.prompt"),
+      prompt: t("sidepanel.welcome.action.imageDescribe.prompt"),
+      mode: "fill",
+    },
+    {
+      id: "image-ocr",
+      label: t("sidepanel.welcome.action.imageOcr.prompt"),
+      prompt: t("sidepanel.welcome.action.imageOcr.prompt"),
+      mode: "fill",
     },
   ];
 
   const libraryActions: WelcomeQuickAction[] = [
     {
       id: "library-related",
-      label: "Related saves",
-      prompt:
-        "Find items from my saved Huntly library that relate to this page, then compare the main ideas.",
+      label: t("sidepanel.welcome.action.libraryRelated.prompt"),
+      prompt: t("sidepanel.welcome.action.libraryRelated.prompt"),
       includeCurrentPageContext: true,
       disabled: !pageReady,
     },
     {
       id: "library-recent",
-      label: "Best of recent",
-      prompt:
-        "Look through my recent saves and tell me which items are most worth revisiting right now, with short reasons.",
+      label: t("sidepanel.welcome.action.libraryRecent.prompt"),
+      prompt: t("sidepanel.welcome.action.libraryRecent.prompt"),
     },
     {
       id: "library-themes",
-      label: "Theme map",
-      prompt:
-        "Group my saved Huntly items into the main themes you can find, and name the patterns you notice.",
+      label: t("sidepanel.welcome.action.libraryThemes.prompt"),
+      prompt: t("sidepanel.welcome.action.libraryThemes.prompt"),
     },
     {
       id: "library-briefing",
-      label: "Quick briefing",
-      prompt:
-        "Build a quick briefing from my Huntly saves: what topics I am circling around, what changed recently, and what deserves attention.",
+      label: t("sidepanel.welcome.action.libraryBriefing.prompt"),
+      prompt: t("sidepanel.welcome.action.libraryBriefing.prompt"),
     },
   ];
 
-  return [
+  const groups: WelcomeActionGroup[] = [
     {
-      id: "prompts",
-      title: "Prompts",
+      id: "shortcuts",
+      title: t("sidepanel.welcome.group.shortcuts"),
       icon: Sparkles,
-      emptyState: "No enabled slash prompts yet.",
+      emptyState: t("sidepanel.welcome.empty.prompts"),
       actions: promptActions,
     },
     {
-      id: "understand",
-      title: "Understand",
+      id: "page",
+      title: t("sidepanel.welcome.group.page"),
       icon: Command,
-      emptyState: "Open a readable tab to use these page suggestions.",
-      actions: pageActions,
+      emptyState: t("sidepanel.welcome.empty.page"),
+      actions: [...pageActions, ...selectionActions].slice(0, MAX_STATIC_ACTIONS),
     },
     {
-      id: "question",
-      title: "Question",
-      icon: Search,
-      emptyState: "Open a readable tab to use these page suggestions.",
-      actions: questionActions,
-    },
-    {
-      id: "library",
-      title: "Library",
-      icon: BookOpen,
-      emptyState: "No library suggestions available right now.",
-      actions: libraryActions,
+      id: "image",
+      title: t("sidepanel.welcome.group.image"),
+      icon: ImageIcon,
+      emptyState: t("sidepanel.welcome.empty.image"),
+      actions: imageActions.slice(0, MAX_STATIC_ACTIONS),
     },
   ];
+
+  if (huntlyMcpEnabled) {
+    groups.push({
+      id: "library",
+      title: t("sidepanel.welcome.group.library"),
+      icon: BookOpen,
+      emptyState: t("sidepanel.welcome.empty.library"),
+      actions: libraryActions.slice(0, MAX_STATIC_ACTIONS),
+    });
+  }
+
+  return groups;
 }
 
 export const WelcomePane: FC<WelcomePaneProps> = ({
   slashPrompts,
   tabContext,
+  huntlyMcpEnabled,
   onQuickActionSend,
+  onQuickActionFillComposer,
   disabled = false,
 }) => {
+  const { t } = useI18n();
   const [activeGroupId, setActiveGroupId] =
     useState<WelcomeActionGroupId | null>(null);
   const panelRef = useRef<HTMLDivElement>(null);
 
   const groups = useMemo(
-    () => buildWelcomeGroups(slashPrompts, tabContext),
-    [slashPrompts, tabContext]
+    () => buildWelcomeGroups(t, slashPrompts, tabContext, huntlyMcpEnabled),
+    [slashPrompts, t, tabContext, huntlyMcpEnabled]
   );
 
   const activeGroup =
@@ -244,6 +255,10 @@ export const WelcomePane: FC<WelcomePaneProps> = ({
   const handleActionClick = (action: WelcomeQuickAction) => {
     if (disabled || action.disabled) return;
     setActiveGroupId(null);
+    if (action.mode === "fill") {
+      onQuickActionFillComposer(action.prompt);
+      return;
+    }
     onQuickActionSend(action.prompt, {
       includeCurrentPageContext: action.includeCurrentPageContext,
     });
@@ -254,13 +269,10 @@ export const WelcomePane: FC<WelcomePaneProps> = ({
       className="flex h-full w-full items-center justify-center px-5 py-8"
       onClick={() => setActiveGroupId(null)}
     >
-      <div
-        ref={panelRef}
-        className="relative w-full max-w-[520px]"
-      >
+      <div ref={panelRef} className="relative w-full max-w-[520px]">
         <div className="text-center">
           <h1 className="font-serif text-[34px] leading-none text-[#2f261f]">
-            Welcome to Huntly Chat
+            {t("sidepanel.welcome.title")}
           </h1>
         </div>
 
@@ -305,6 +317,11 @@ export const WelcomePane: FC<WelcomePaneProps> = ({
               {activeGroup.actions.length > 0 ? (
                 activeGroup.actions.map((action) => {
                   const isActionDisabled = action.disabled || disabled;
+                  const actionTextClass = isActionDisabled
+                    ? "text-[#b19d88]"
+                    : action.tone === "prompt"
+                      ? "font-semibold text-[#9a4f2c]"
+                      : "text-[#3c3027]";
 
                   return (
                     <button
@@ -312,8 +329,8 @@ export const WelcomePane: FC<WelcomePaneProps> = ({
                       type="button"
                       className={`w-full rounded-[18px] px-4 py-3 text-left text-[15px] font-medium leading-6 transition-all focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-[#a34020] focus-visible:ring-offset-2 focus-visible:ring-offset-[#f7f3ea] ${
                         isActionDisabled
-                          ? "cursor-not-allowed text-[#b19d88]"
-                          : "text-[#3c3027] hover:bg-[#f1e8dd]"
+                          ? "cursor-not-allowed"
+                          : "cursor-pointer hover:bg-[#f1e8dd]"
                       }`}
                       disabled={isActionDisabled}
                       onClick={(event) => {
@@ -321,7 +338,7 @@ export const WelcomePane: FC<WelcomePaneProps> = ({
                         handleActionClick(action);
                       }}
                     >
-                      {action.label}
+                      <span className={actionTextClass}>{action.label}</span>
                     </button>
                   );
                 })
@@ -342,25 +359,29 @@ interface EmptyProvidersProps {
   onOpenSettings: () => void;
 }
 
-export const EmptyProviders: FC<EmptyProvidersProps> = ({ onOpenSettings }) => (
-  <div className="flex h-full items-center justify-center bg-[#f7f3ea] px-8">
-    <div className="max-w-sm text-center">
-      <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#f1e4d2] text-[#9a4f2c]">
-        <AlertTriangle className="size-6" />
+export const EmptyProviders: FC<EmptyProvidersProps> = ({ onOpenSettings }) => {
+  const { t } = useI18n();
+
+  return (
+    <div className="flex h-full items-center justify-center bg-[#f7f3ea] px-8">
+      <div className="max-w-sm text-center">
+        <div className="mx-auto mb-4 flex h-12 w-12 items-center justify-center rounded-xl bg-[#f1e4d2] text-[#9a4f2c]">
+          <AlertTriangle className="size-6" />
+        </div>
+        <div className="text-lg font-semibold text-[#332a22]">
+          {t("sidepanel.emptyProviders.title")}
+        </div>
+        <div className="mt-2 text-sm leading-6 text-[#75695b]">
+          {t("sidepanel.emptyProviders.description")}
+        </div>
+        <button
+          type="button"
+          className="mt-5 rounded-lg bg-[#2f261f] px-4 py-2 text-sm font-medium text-[#fffaf4] transition-colors hover:bg-[#46382d]"
+          onClick={onOpenSettings}
+        >
+          {t("common.openSettings")}
+        </button>
       </div>
-      <div className="text-lg font-semibold text-[#332a22]">
-        No AI providers configured
-      </div>
-      <div className="mt-2 text-sm leading-6 text-[#75695b]">
-        Configure at least one AI provider in settings to start chatting.
-      </div>
-      <button
-        type="button"
-        className="mt-5 rounded-lg bg-[#2f261f] px-4 py-2 text-sm font-medium text-[#fffaf4] transition-colors hover:bg-[#46382d]"
-        onClick={onOpenSettings}
-      >
-        Open settings
-      </button>
     </div>
-  </div>
-);
+  );
+};

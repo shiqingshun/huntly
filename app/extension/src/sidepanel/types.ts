@@ -18,6 +18,24 @@ export interface HuntlyModelInfo {
   displayName: string;
 }
 
+export type ChatStatusPartKind = "compacting" | "compacted" | "error";
+
+export type ChatErrorCode =
+  | "context-overflow"
+  | "auth"
+  | "quota"
+  | "network"
+  | "timeout"
+  | "unknown";
+
+export interface SessionRollingSummary {
+  text: string;
+  summarizedThroughMessageId: string;
+  updatedAt: string;
+  version: number;
+  lastCompactedAt?: string;
+}
+
 // ---------------------------------------------------------------------------
 // Chat message types
 // ---------------------------------------------------------------------------
@@ -26,6 +44,7 @@ export interface ChatPart {
   type:
     | "text"
     | "reasoning"
+    | "status"
     | "tool-call"
     | "file"
     | "page-context"
@@ -48,10 +67,23 @@ export interface ChatPart {
   size?: number;
   toolCallId?: string;
   toolName?: string;
+  toolTitle?: string;
+  toolSource?: "local" | "mcp";
+  toolSourceLabel?: string;
   args?: Record<string, unknown>;
   argsText?: string;
   result?: unknown;
   isError?: boolean;
+  statusKind?: ChatStatusPartKind;
+  label?: string;
+  message?: string;
+  details?: string;
+  summary?: string;
+  errorCode?: ChatErrorCode;
+  retryable?: boolean;
+  canCompact?: boolean;
+  compactedThroughMessageId?: string;
+  compactedMessageCount?: number;
 }
 
 export interface ChatMessage {
@@ -77,6 +109,7 @@ export interface SessionData {
   titleGeneratedAt?: string;
   currentModelId: string | null;
   thinkingEnabled: boolean;
+  rollingSummary?: SessionRollingSummary;
   messages: ChatMessage[];
   createdAt: string;
   updatedAt: string;

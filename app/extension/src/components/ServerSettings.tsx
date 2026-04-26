@@ -15,12 +15,14 @@ import {
   Snackbar,
   Switch,
   TextField,
+  Tooltip,
   Typography,
 } from '@mui/material';
 import DeleteIcon from '@mui/icons-material/Delete';
 import AddIcon from '@mui/icons-material/Add';
 import RefreshIcon from '@mui/icons-material/Refresh';
 import OpenInNewIcon from '@mui/icons-material/OpenInNew';
+import HelpOutlineIcon from '@mui/icons-material/HelpOutline';
 import LockIcon from '@mui/icons-material/Lock';
 import ExpandMoreIcon from '@mui/icons-material/ExpandMore';
 import ExpandLessIcon from '@mui/icons-material/ExpandLess';
@@ -33,6 +35,7 @@ import {
   savePromptsSettings,
 } from '../storage';
 import { getLoginUserInfo, fetchEnabledShortcuts } from '../services';
+import { useI18n } from '../i18n';
 
 interface ServerShortcut {
   id: number;
@@ -52,6 +55,7 @@ export type ServerSettingsProps = {
 export const ServerSettings: React.FC<ServerSettingsProps> = ({
   onSettingsChange,
 }) => {
+  const { t } = useI18n();
   const [serverUrlList, setServerUrlList] = useState<ServerUrlItem[]>([
     { url: '' },
   ]);
@@ -198,7 +202,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
 
     // Validate and clear error if valid
     if (value && !validateUrl(value)) {
-      setUrlErrors({ ...urlErrors, [index]: 'Enter correct url!' });
+      setUrlErrors({ ...urlErrors, [index]: t('server.urlError') });
     } else {
       const newErrors = { ...urlErrors };
       delete newErrors[index];
@@ -279,21 +283,30 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
         onClose={() => setShowSavedTip(false)}
       >
         <Alert severity="success" onClose={() => setShowSavedTip(false)}>
-          Settings saved.
+          {t('common.settingsSaved')}
         </Alert>
       </Snackbar>
 
       <div className="section-header">
-        <h2 className="section-title">Server Configuration</h2>
+        <h2 className="section-title">{t('server.title')}</h2>
         <p className="section-description">
-          Configure your Huntly server URL.{' '}
+          {t('server.description')}{' '}
           <a
             href="https://github.com/lcomplete/huntly"
             target="_blank"
             rel="noopener noreferrer"
           >
-            How to run the server &gt;
+            {t('server.help')}
           </a>
+          <Tooltip title={t('server.optionalTooltip')} arrow>
+            <IconButton
+              size="small"
+              aria-label={t('server.optionalTooltipLabel')}
+              sx={{ ml: 0.5, p: 0.5, color: 'text.secondary', verticalAlign: 'middle' }}
+            >
+              <HelpOutlineIcon fontSize="small" />
+            </IconButton>
+          </Tooltip>
         </p>
       </div>
 
@@ -304,7 +317,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
               margin="normal"
               size="small"
               variant="outlined"
-              label="Server URL"
+              label={t('server.urlLabel')}
               fullWidth
               value={item.url}
               required
@@ -348,19 +361,19 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
           <Box sx={{ display: 'flex', alignItems: 'center', gap: 2 }}>
             {checkingLogin ? (
               <Typography variant="body2" color="text.secondary">
-                Checking login status...
+                {t('server.checkingLogin')}
               </Typography>
             ) : isLoggedIn && userInfo ? (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <CheckCircleIcon sx={{ color: 'success.main', fontSize: 20 }} />
                 <Typography variant="body2" color="text.secondary">
-                  Logged in as <strong>{userInfo.username}</strong>
+                  {t('server.loggedInAs', { username: userInfo.username })}
                 </Typography>
               </Box>
             ) : (
               <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
                 <Typography variant="body2" color="text.secondary">
-                  Not logged in
+                  {t('server.notLoggedIn')}
                 </Typography>
                 <Button
                   size="small"
@@ -368,7 +381,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                   startIcon={<LoginIcon />}
                   onClick={handleLogin}
                 >
-                  Login
+                  {t('common.login')}
                 </Button>
               </Box>
             )}
@@ -376,7 +389,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
               size="small"
               onClick={handleRefresh}
               disabled={checkingLogin}
-              title="Refresh"
+              title={t('common.refresh')}
             >
               <RefreshIcon fontSize="small" />
             </IconButton>
@@ -388,10 +401,10 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
       {isServerEnabled && (
         <Paper variant="outlined" sx={{ mt: 3, p: 3 }}>
           <Typography variant="h6" sx={{ mb: 1, fontWeight: 500 }}>
-            Auto Save
+            {t('server.autoSave.title')}
           </Typography>
           <Typography variant="body2" color="text.secondary" sx={{ mb: 2.5 }}>
-            Automatically save content to your Huntly server as you browse.
+            {t('server.autoSave.description')}
           </Typography>
 
           <Box sx={{ display: 'flex', flexDirection: 'column', gap: 0.5 }}>
@@ -417,9 +430,9 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                 }
                 label={
                   <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>Auto save articles</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>{t('server.autoSave.articles.title')}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Save articles after staying on a page for a while
+                      {t('server.autoSave.articles.description')}
                     </Typography>
                   </Box>
                 }
@@ -449,9 +462,9 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                 }
                 label={
                   <Box>
-                    <Typography variant="body1" sx={{ fontWeight: 500 }}>Auto save tweets</Typography>
+                    <Typography variant="body1" sx={{ fontWeight: 500 }}>{t('server.autoSave.tweets.title')}</Typography>
                     <Typography variant="body2" color="text.secondary">
-                      Save tweets from your timeline as you scroll on X
+                      {t('server.autoSave.tweets.description')}
                     </Typography>
                   </Box>
                 }
@@ -477,7 +490,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                       }
                     }}
                   >
-                    More Settings
+                    {t('server.autoSave.moreSettings')}
                     <OpenInNewIcon sx={{ fontSize: 14 }} />
                   </Typography>
                 </Box>
@@ -500,11 +513,11 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
           >
             <Box sx={{ display: 'flex', alignItems: 'center', gap: 1 }}>
               <Typography variant="h6" sx={{ fontWeight: 500 }}>
-                Huntly Server AI Shortcuts
+                {t('server.shortcuts.title')}
               </Typography>
               <Chip
                 icon={<LockIcon sx={{ fontSize: 14 }} />}
-                label="Read-only"
+                label={t('common.readOnly')}
                 size="small"
                 variant="outlined"
                 color="default"
@@ -520,14 +533,14 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                     disabled={!isLoggedIn}
                   />
                 }
-                label="Enable"
+                label={t('common.enable')}
                 sx={{ mr: 1 }}
               />
               <IconButton
                 size="small"
                 onClick={handleRefresh}
                 disabled={checkingLogin || loadingShortcuts}
-                title="Refresh"
+                title={t('common.refresh')}
               >
                 <RefreshIcon fontSize="small" />
               </IconButton>
@@ -537,8 +550,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
           {!isLoggedIn ? (
             <Alert severity="info" sx={{ mt: 1 }}>
               <Typography variant="body2">
-                Please login to your Huntly server to use AI shortcuts. After logging in,
-                configure AI provider and shortcuts in{' '}
+                {t('server.shortcuts.loginRequiredPrefix')}{' '}
                 <a
                   href="#"
                   onClick={(e) => {
@@ -547,7 +559,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                   }}
                   style={{ color: 'inherit', textDecoration: 'underline' }}
                 >
-                  Huntly Server Settings
+                  {t('server.shortcuts.settingsLink')}
                 </a>
                 .
               </Typography>
@@ -563,12 +575,12 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                     color: 'text.secondary',
                   }}
                 >
-                  <Typography>Loading shortcuts...</Typography>
+                  <Typography>{t('server.shortcuts.loading')}</Typography>
                 </Paper>
               ) : serverShortcuts.length === 0 ? (
                 <Alert severity="info">
                   <Typography variant="body2">
-                    No AI shortcuts configured on server. Configure shortcuts in{' '}
+                    {t('server.shortcuts.emptyPrefix')}{' '}
                     <a
                       href="#"
                       onClick={(e) => {
@@ -577,7 +589,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                       }}
                       style={{ color: 'inherit', textDecoration: 'underline' }}
                     >
-                      Huntly Server Settings
+                      {t('server.shortcuts.settingsLink')}
                     </a>
                     .
                   </Typography>
@@ -619,7 +631,9 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                       startIcon={serverShortcutsExpanded ? <ExpandLessIcon /> : <ExpandMoreIcon />}
                       sx={{ mt: 1 }}
                     >
-                      {serverShortcutsExpanded ? 'Show less' : `Show all (${serverShortcuts.length})`}
+                      {serverShortcutsExpanded
+                        ? t('common.showLess')
+                        : t('common.showAll', { count: serverShortcuts.length })}
                     </Button>
                   )}
                   <Box sx={{ mt: 2 }}>
@@ -629,7 +643,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
                       startIcon={<OpenInNewIcon />}
                       onClick={handleOpenHuntlySettings}
                     >
-                      Edit in Huntly Server
+                      {t('server.shortcuts.editInServer')}
                     </Button>
                   </Box>
                 </>
@@ -639,7 +653,7 @@ export const ServerSettings: React.FC<ServerSettingsProps> = ({
 
           {isLoggedIn && !huntlyShortcutsEnabled && (
             <Alert severity="info" sx={{ mt: 2 }}>
-              Huntly server shortcuts are disabled. Enable them to use server-side AI shortcuts.
+              {t('server.shortcuts.disabled')}
             </Alert>
           )}
         </Paper>
